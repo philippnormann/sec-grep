@@ -1,0 +1,15 @@
+# Secrets
+.env
+
+# OS/editor/app local state
+.DS_Store
+.claude/*.lock
+
+# Rust
+/target
+**/*.rs.bk
+
+# Local data / DB
+*.db
+*.db-wal
+*.db-shm

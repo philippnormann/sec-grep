@@ -1,0 +1,82 @@
+# Default venue catalog for sec-grep.
+# Override or extend at ~/.config/sec-grep/venues.yaml (merged by venue id).
+# `dblp_stream` is the dblp stream slug (https://dblp.org/streams/<stream>).
+# `rank` is a free-form label (CORE, ICORE2026 source); `tags` are free-form.
+# `abstract_source` selects the abstract-fetch strategy hint.
+# `publ_type` is the dblp rdf:type (default Inproceedings; Article for journals).
+
+defaults:
+  min_year: 2000
+
+venues:
+  - id: NDSS
+    name: Network and Distributed System Security Symposium
+    dblp_stream: conf/ndss
+    aliases: [ndss]
+    rank: A*
+    tags: [systems, network, web]
+    abstract_source: ndss
+
+  - id: USENIX-SEC
+    name: USENIX Security Symposium
+    dblp_stream: conf/uss
+    aliases: [usenix, uss, sec, usec]
+    rank: A*
+    tags: [systems, crypto, network]
+    abstract_source: usenix
+
+  - id: SP
+    name: IEEE Symposium on Security and Privacy
+    dblp_stream: conf/sp
+    aliases: [sp, oakland, ieeesp, "s&p"]
+    rank: A*
+    tags: [systems, crypto, network]
+    abstract_source: ieee
+
+  - id: CCS
+    name: ACM Conference on Computer and Communications Security
+    dblp_stream: conf/ccs
+    aliases: [ccs]
+    rank: A*
+    tags: [systems, crypto, web]
+    abstract_source: acm
+
+  - id: RAID
+    name: Symposium on Research in Attacks, Intrusions and Defenses
+    dblp_stream: conf/raid
+    aliases: [raid]
+    rank: A
+    tags: [systems, network, malware]
+    abstract_source: springer
+
+  - id: ACSAC
+    name: Annual Computer Security Applications Conference
+    dblp_stream: conf/acsac
+    aliases: [acsac]
+    rank: A
+    tags: [systems, applied]
+    abstract_source: acm
+
+  - id: ESORICS
+    name: European Symposium on Research in Computer Security
+    dblp_stream: conf/esorics
+    aliases: [esorics]
+    rank: A
+    tags: [crypto, systems]
+    abstract_source: springer
+
+  - id: AsiaCCS
+    name: ACM Asia Conference on Computer and Communications Security
+    dblp_stream: conf/asiaccs
+    aliases: [asiaccs]
+    rank: A
+    tags: [systems, crypto]
+    abstract_source: acm
+
+  - id: EuroSP
+    name: IEEE European Symposium on Security and Privacy
+    dblp_stream: conf/eurosp
+    aliases: [eurosp, "euros&p"]
+    rank: A
+    tags: [systems, crypto]
+    abstract_source: ieee

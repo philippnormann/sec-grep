@@ -89,6 +89,26 @@ body {
   border-right: 1px solid #334155;
 }
 
+@media (max-width: 900px) {
+  .main {
+    flex-direction: column;
+    overflow: auto;
+  }
+
+  .results {
+    flex: none !important;
+    border-right: none;
+    border-bottom: 1px solid #334155;
+    max-height: 55vh;
+    min-height: 180px;
+  }
+
+  .detail {
+    flex: 1 1 auto !important;
+    overflow-y: auto;
+  }
+}
+
 .result-row {
   display: flex;
   align-items: center;

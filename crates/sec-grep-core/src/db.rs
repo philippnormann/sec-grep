@@ -5,6 +5,7 @@ use std::path::Path;
 use rusqlite::{params_from_iter, types::Value, Connection, OpenFlags, OptionalExtension, Row};
 
 use crate::config::VenueFilter;
+use crate::query::YearRange;
 use crate::{Paper, Result};
 
 const SCHEMA: &str = r#"
@@ -52,7 +53,6 @@ CREATE TRIGGER IF NOT EXISTS papers_au AFTER UPDATE ON papers BEGIN
 END;
 "#;
 
-const PAPER_COLUMNS: &str = "dblp_key, venue, year, title, authors, doi, url, abstract";
 const PAPER_COLUMNS_WITH_ALIAS: &str =
     "p.dblp_key, p.venue, p.year, p.title, p.authors, p.doi, p.url, p.abstract";
 
@@ -73,8 +73,7 @@ pub struct Search {
     pub fts: Option<String>,
     pub venue_filter: VenueFilter,
     pub doi_terms: Vec<String>,
-    pub year_min: Option<i32>,
-    pub year_max: Option<i32>,
+    pub year_ranges: Vec<YearRange>,
     pub sort: Sort,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
@@ -169,27 +168,6 @@ impl Database {
             rusqlite::params![dblp_key, abstract_text],
         )?;
         Ok(())
-    }
-
-    /// Papers needing abstract enrichment (have a url, lack an abstract).
-    pub fn papers_missing_abstract(
-        &self,
-        venues: &[String],
-        limit: Option<usize>,
-    ) -> Result<Vec<Paper>> {
-        let mut parts = missing_abstract_parts(venues, None);
-        let mut sql = format!("SELECT {PAPER_COLUMNS} FROM papers p {}", parts.where_sql);
-        sql.push_str(" ORDER BY venue ASC, year DESC, title ASC");
-        if let Some(n) = limit {
-            let next = parts.args.len() + 1;
-            sql.push_str(&format!(" LIMIT ?{next}"));
-            parts.args.push((n as i64).into());
-        }
-        let mut stmt = self.conn.prepare(&sql)?;
-        let rows = stmt
-            .query_map(params_from_iter(parts.args.iter()), row_to_paper)?
-            .collect::<std::result::Result<_, _>>()?;
-        Ok(rows)
     }
 
     pub fn papers_missing_abstract_batch(
@@ -299,6 +277,54 @@ fn append_string_args(args: &mut Vec<Value>, values: &[String]) {
     args.extend(values.iter().cloned().map(Value::from));
 }
 
+fn year_ranges_clause(column: &str, start: usize, ranges: &[YearRange]) -> String {
+    let mut next = start;
+    let clauses = ranges
+        .iter()
+        .map(|range| match range.bounds() {
+            (Some(min), Some(max)) if min == max => {
+                let placeholder = next;
+                next += 1;
+                format!("{column} = ?{placeholder}")
+            }
+            (Some(_), Some(_)) => {
+                let min_placeholder = next;
+                let max_placeholder = next + 1;
+                next += 2;
+                format!("({column} >= ?{min_placeholder} AND {column} <= ?{max_placeholder})")
+            }
+            (Some(_), None) => {
+                let placeholder = next;
+                next += 1;
+                format!("{column} >= ?{placeholder}")
+            }
+            (None, Some(_)) => {
+                let placeholder = next;
+                next += 1;
+                format!("{column} <= ?{placeholder}")
+            }
+            (None, None) => unreachable!("year parser rejects empty ranges"),
+        })
+        .collect::<Vec<_>>()
+        .join(" OR ");
+    format!("({clauses})")
+}
+
+fn append_year_range_args(args: &mut Vec<Value>, ranges: &[YearRange]) {
+    for range in ranges {
+        match range.bounds() {
+            (Some(min), Some(max)) if min == max => args.push((min as i64).into()),
+            (Some(min), Some(max)) => {
+                args.push((min as i64).into());
+                args.push((max as i64).into());
+            }
+            (Some(min), None) => args.push((min as i64).into()),
+            (None, Some(max)) => args.push((max as i64).into()),
+            (None, None) => unreachable!("year parser rejects empty ranges"),
+        }
+    }
+}
+
 struct SearchQueryParts {
     from: String,
     where_sql: String,
@@ -321,15 +347,9 @@ fn search_query_parts(q: &Search) -> SearchQueryParts {
         where_clauses.push(in_clause("p.venue", args.len() + 1, venues.len()));
         append_string_args(&mut args, venues);
     }
-    if let Some(y) = q.year_min {
-        let next = args.len() + 1;
-        where_clauses.push(format!("p.year >= ?{next}"));
-        args.push((y as i64).into());
-    }
-    if let Some(y) = q.year_max {
-        let next = args.len() + 1;
-        where_clauses.push(format!("p.year <= ?{next}"));
-        args.push((y as i64).into());
+    if !q.year_ranges.is_empty() {
+        where_clauses.push(year_ranges_clause("p.year", args.len() + 1, &q.year_ranges));
+        append_year_range_args(&mut args, &q.year_ranges);
     }
     if !q.doi_terms.is_empty() {
         where_clauses.push(like_any_clause("p.doi", args.len() + 1, q.doi_terms.len()));
@@ -550,11 +570,27 @@ mod tests {
 
         let by_year = db
             .search(&Search {
-                year_min: Some(2020),
+                year_ranges: vec![YearRange::new(Some(2020), None).unwrap()],
                 ..Default::default()
             })
             .unwrap();
         assert_eq!(by_year.len(), 2);
+    }
+
+    #[test]
+    fn repeated_year_filters_match_any_range() {
+        let db = seeded();
+        let hits = db
+            .search(&Search {
+                year_ranges: vec![YearRange::single(2019), YearRange::single(2021)],
+                ..Default::default()
+            })
+            .unwrap();
+        let keys = hits
+            .iter()
+            .map(|paper| paper.dblp_key.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(keys, vec!["k2", "k3"]);
     }
 
     #[test]
@@ -592,21 +628,6 @@ mod tests {
         };
         assert_eq!(db.search_count(&search).unwrap(), 0);
         assert!(db.search(&search).unwrap().is_empty());
-    }
-
-    #[test]
-    fn missing_abstract_listing() {
-        let db = seeded();
-        let missing = db.papers_missing_abstract(&[], None).unwrap();
-        assert_eq!(missing.len(), 1);
-        assert_eq!(missing[0].dblp_key, "k2");
-    }
-
-    #[test]
-    fn missing_abstract_listing_applies_limit() {
-        let db = seeded();
-        let missing = db.papers_missing_abstract(&[], Some(0)).unwrap();
-        assert!(missing.is_empty());
     }
 
     #[test]

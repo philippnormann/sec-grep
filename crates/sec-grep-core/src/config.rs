@@ -25,10 +25,6 @@ pub struct Venue {
     pub tags: Vec<String>,
     #[serde(default)]
     pub abstract_source: Option<AbstractSource>,
-    /// dblp publication type for this stream (`Inproceedings` for conferences,
-    /// `Article` for journals like PoPETs).
-    #[serde(default = "default_publ_type")]
-    pub publ_type: DblpPublicationType,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -39,26 +35,6 @@ pub enum AbstractSource {
     Ndss,
     Springer,
     Usenix,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "PascalCase")]
-pub enum DblpPublicationType {
-    Inproceedings,
-    Article,
-}
-
-impl DblpPublicationType {
-    pub fn as_dblp_type(self) -> &'static str {
-        match self {
-            DblpPublicationType::Inproceedings => "Inproceedings",
-            DblpPublicationType::Article => "Article",
-        }
-    }
-}
-
-fn default_publ_type() -> DblpPublicationType {
-    DblpPublicationType::Inproceedings
 }
 
 impl Venue {
@@ -223,8 +199,9 @@ impl Config {
         self.venues.iter().map(|v| v.id.clone()).collect()
     }
 
-    /// Resolve the union of explicit venue selectors, rank filters, and tag
-    /// filters, preserving first-seen catalog/user order.
+    /// Resolve venue selectors, rank filters, and tag filters into one venue
+    /// filter. Multiple values within one filter kind are ORed; different
+    /// filter kinds are ANDed.
     pub fn resolve_venue_filter(
         &self,
         venues: &[String],
@@ -234,20 +211,18 @@ impl Config {
         if venues.is_empty() && ranks.is_empty() && tags.is_empty() {
             return Ok(VenueFilter::All);
         }
-        let mut ids = Vec::new();
-        let mut seen = HashSet::new();
-        Self::extend_unique(&mut ids, &mut seen, self.resolve_venues(venues)?);
-        Self::extend_unique(&mut ids, &mut seen, self.venues_by_rank(ranks));
-        Self::extend_unique(&mut ids, &mut seen, self.venues_by_tag(tags));
-        Ok(VenueFilter::from_active_ids(ids))
-    }
 
-    fn extend_unique(ids: &mut Vec<String>, seen: &mut HashSet<String>, new_ids: Vec<String>) {
-        for id in new_ids {
-            if seen.insert(id.clone()) {
-                ids.push(id);
-            }
+        let mut filter = VenueFilter::All;
+        if !venues.is_empty() {
+            filter = filter.intersect(VenueFilter::from_active_ids(self.resolve_venues(venues)?));
         }
+        if !ranks.is_empty() {
+            filter = filter.intersect(VenueFilter::from_active_ids(self.venues_by_rank(ranks)));
+        }
+        if !tags.is_empty() {
+            filter = filter.intersect(VenueFilter::from_active_ids(self.venues_by_tag(tags)));
+        }
+        Ok(filter)
     }
 
     /// Venue ids matching the given rank labels (case-insensitive).
@@ -423,17 +398,31 @@ venues:
     }
 
     #[test]
-    fn combined_venue_filter_deduplicates_in_order() {
+    fn combined_venue_filter_ands_across_filter_kinds() {
         let cfg = Config::defaults().unwrap();
         let filter = cfg
-            .resolve_venue_filter(&["ndss".into()], &["A*".into()], &["crypto".into()])
+            .resolve_venue_filter(&["ccs".into(), "raid".into()], &["A*".into()], &[])
             .unwrap();
         let VenueFilter::Only(ids) = filter else {
             panic!("expected active venue filter");
         };
-        assert_eq!(ids.first().map(String::as_str), Some("NDSS"));
-        assert_eq!(ids.iter().filter(|id| id.as_str() == "NDSS").count(), 1);
+        assert_eq!(ids, vec!["CCS".to_string()]);
+    }
+
+    #[test]
+    fn combined_venue_filter_ors_within_filter_kind() {
+        let cfg = Config::defaults().unwrap();
+        let filter = cfg
+            .resolve_venue_filter(&[], &["A*".into()], &["crypto".into(), "web".into()])
+            .unwrap();
+        let VenueFilter::Only(ids) = filter else {
+            panic!("expected active venue filter");
+        };
+        assert!(ids.contains(&"NDSS".to_string()));
+        assert!(ids.contains(&"USENIX-SEC".to_string()));
+        assert!(ids.contains(&"SP".to_string()));
         assert!(ids.contains(&"CCS".to_string()));
+        assert!(!ids.contains(&"RAID".to_string()));
     }
 
     #[test]

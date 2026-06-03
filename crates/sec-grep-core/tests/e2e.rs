@@ -1,7 +1,8 @@
-//! End-to-end pipeline: dblp JSON -> upsert -> compile query -> search -> render.
+//! End-to-end pipeline: dblp JSON -> upsert -> parse query -> search -> render.
 
 use sec_grep_core::db::{Database, Search};
 use sec_grep_core::output::{render, Format};
+use sec_grep_core::query::YearRange;
 use sec_grep_core::{dblp, query};
 use serde_json::json;
 
@@ -37,10 +38,9 @@ fn full_pipeline() {
     assert_eq!(db.count().unwrap(), 3);
 
     // boolean full-text search
-    let fts = query::compile("fuzzing AND kernel").unwrap();
     let hits = db
         .search(&Search {
-            fts,
+            fts: query::fts("fuzzing AND kernel").unwrap(),
             ..Default::default()
         })
         .unwrap();
@@ -50,10 +50,9 @@ fn full_pipeline() {
     assert_eq!(hits[0].doi.as_deref(), Some("10.1/a"));
 
     // phrase search
-    let fts = query::compile("\"side channel\"").unwrap();
     let hits = db
         .search(&Search {
-            fts,
+            fts: query::fts("\"side channel\"").unwrap(),
             ..Default::default()
         })
         .unwrap();
@@ -63,7 +62,7 @@ fn full_pipeline() {
     // year filter
     let recent = db
         .search(&Search {
-            year_min: Some(2023),
+            year_ranges: vec![YearRange::new(Some(2023), None).unwrap()],
             ..Default::default()
         })
         .unwrap();

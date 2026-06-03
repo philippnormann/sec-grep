@@ -10,9 +10,9 @@ authors, abstract, venue, year, rank, tag, and DOI.
 
 ## Why
 
-- Search beyond the usual top-4 security venues.
-- Keep the corpus local, fast, and scriptable.
-- Move fluidly between terminal output, BibTeX export, and an interactive TUI.
+- Search beyond the usual top-4 security venues with a configurable catalog.
+- Keep the corpus local and query it quickly with SQLite/FTS5.
+- Search in the CLI or TUI, and export CSV, JSON, or BibTeX for scripts.
 
 ## Install
 
@@ -107,6 +107,8 @@ sec-grep --db ./papers.db 'symbolic execution' --venue ccs
 - Metadata filters: `venue:`, `year:`, `rank:`, `tag:`, `doi:`.
 - Prefix search: `fuzz*`.
 
+Year filters accept `2020`, `2018-2024`, `2020-`, and `-2019`.
+
 Metadata filters can be written inline:
 
 ```sh
@@ -119,17 +121,19 @@ or as CLI flags:
 sec-grep 'malware detection' --year 2022- --rank A
 ```
 
-Boolean syntax applies to full-text terms. Metadata filters are combined as
-filters, so multiple rank filters mean "any of these ranks":
+Boolean operators apply only to full-text terms. Metadata filters are ORed
+within one field and ANDed across fields.
 
 ```sh
 sec-grep 'malware OR botnet' --rank A --rank 'A*'
+sec-grep 'malware OR botnet year:2018 year:2029'
+sec-grep 'malware OR botnet' --rank A --tag systems
 ```
 
 ## Venues
 
 The bundled venue catalog lives in `crates/sec-grep-core/venues.yaml`. It
-defines each conference's display name, DBLP stream, aliases, rank, tags, and
+defines each venue's display name, DBLP stream, aliases, rank, tags, and
 abstract parser hint.
 
 After `sec-grep init`, you can extend or override the catalog with a user
@@ -200,7 +204,7 @@ OPENALEX_API_KEY=
 SEMANTIC_SCHOLAR_S2_KEY=
 ```
 
-`.env` is loaded automatically when present and should not be committed.
+`.env` is loaded automatically when present.
 
 ## Acknowledgements
 

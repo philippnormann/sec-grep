@@ -14,6 +14,41 @@
 use crate::config::{Config, VenueFilter};
 use crate::{Error, Result};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct YearRange {
+    min: Option<i32>,
+    max: Option<i32>,
+}
+
+impl YearRange {
+    pub fn new(min: Option<i32>, max: Option<i32>) -> Result<Self> {
+        if min.is_none() && max.is_none() {
+            return Err(Error::Query(
+                "year range must have at least one bound".into(),
+            ));
+        }
+        if let (Some(min), Some(max)) = (min, max) {
+            if min > max {
+                return Err(Error::Query(format!(
+                    "year range minimum {min} is after maximum {max}"
+                )));
+            }
+        }
+        Ok(Self { min, max })
+    }
+
+    pub fn single(year: i32) -> Self {
+        Self {
+            min: Some(year),
+            max: Some(year),
+        }
+    }
+
+    pub fn bounds(&self) -> (Option<i32>, Option<i32>) {
+        (self.min, self.max)
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ParsedQuery {
     pub fts: Option<String>,
@@ -21,29 +56,16 @@ pub struct ParsedQuery {
     pub rank_selectors: Vec<String>,
     pub tag_selectors: Vec<String>,
     pub doi_terms: Vec<String>,
-    pub year_min: Option<i32>,
-    pub year_max: Option<i32>,
+    pub year_ranges: Vec<YearRange>,
 }
 
 impl ParsedQuery {
     pub fn resolve_venue_filter(&self, config: &Config) -> Result<VenueFilter> {
-        let mut filter = VenueFilter::All;
-        if !self.venue_selectors.is_empty() {
-            filter = filter.intersect(VenueFilter::from_active_ids(
-                config.resolve_venues(&self.venue_selectors)?,
-            ));
-        }
-        if !self.rank_selectors.is_empty() {
-            filter = filter.intersect(VenueFilter::from_active_ids(
-                config.venues_by_rank(&self.rank_selectors),
-            ));
-        }
-        if !self.tag_selectors.is_empty() {
-            filter = filter.intersect(VenueFilter::from_active_ids(
-                config.venues_by_tag(&self.tag_selectors),
-            ));
-        }
-        Ok(filter)
+        config.resolve_venue_filter(
+            &self.venue_selectors,
+            &self.rank_selectors,
+            &self.tag_selectors,
+        )
     }
 }
 
@@ -362,16 +384,16 @@ pub fn parse(input: &str) -> Result<ParsedQuery> {
     Ok(parsed)
 }
 
-/// Compile a user query into an FTS5 MATCH expression.
+/// Parse a user query and return only the FTS5 MATCH expression.
 /// Returns `None` for blank or metadata-only input.
-pub fn compile(input: &str) -> Result<Option<String>> {
+pub fn fts(input: &str) -> Result<Option<String>> {
     Ok(parse(input)?.fts)
 }
 
-/// Parse a `--year` selector into an inclusive (min, max) bound.
+/// Parse a `--year` selector into an inclusive range.
 /// Accepts `2020` (single), `2018-2024` (range), `2020-` (open end),
 /// `-2019` (open start).
-pub fn parse_year_range(s: &str) -> Result<(Option<i32>, Option<i32>)> {
+pub fn parse_year_range(s: &str) -> Result<YearRange> {
     let s = s.trim();
     let bad = || {
         Error::Query(format!(
@@ -382,7 +404,7 @@ pub fn parse_year_range(s: &str) -> Result<(Option<i32>, Option<i32>)> {
     match s.split_once('-') {
         None => {
             let y = year(s)?;
-            Ok((Some(y), Some(y)))
+            Ok(YearRange::single(y))
         }
         Some((lo, hi)) => {
             let min = if lo.trim().is_empty() {
@@ -395,10 +417,7 @@ pub fn parse_year_range(s: &str) -> Result<(Option<i32>, Option<i32>)> {
             } else {
                 Some(year(hi)?)
             };
-            if min.is_none() && max.is_none() {
-                return Err(bad());
-            }
-            Ok((min, max))
+            YearRange::new(min, max).map_err(|_| bad())
         }
     }
 }
@@ -471,7 +490,7 @@ fn add_metadata_filter(field: MetadataField, node: Node, parsed: &mut ParsedQuer
         MetadataField::Doi => push_csv_values(&mut parsed.doi_terms, &value),
         MetadataField::Year => {
             let range = parse_year_range(&value)?;
-            merge_year_filter(parsed, range)?;
+            parsed.year_ranges.push(range);
         }
     }
     Ok(())
@@ -497,49 +516,6 @@ fn push_csv_values(values: &mut Vec<String>, raw: &str) {
     );
 }
 
-fn merge_year_filter(
-    parsed: &mut ParsedQuery,
-    (year_min, year_max): (Option<i32>, Option<i32>),
-) -> Result<()> {
-    let (year_min, year_max) =
-        merge_year_bounds((parsed.year_min, parsed.year_max), (year_min, year_max))?;
-    parsed.year_min = year_min;
-    parsed.year_max = year_max;
-    Ok(())
-}
-
-pub fn merge_year_bounds(
-    left: (Option<i32>, Option<i32>),
-    right: (Option<i32>, Option<i32>),
-) -> Result<(Option<i32>, Option<i32>)> {
-    let min = max_bound(left.0, right.0);
-    let max = min_bound(left.1, right.1);
-    if let (Some(min), Some(max)) = (min, max) {
-        if min > max {
-            return Err(Error::Query(format!(
-                "conflicting year filters: minimum {min} is after maximum {max}"
-            )));
-        }
-    }
-    Ok((min, max))
-}
-
-fn max_bound(left: Option<i32>, right: Option<i32>) -> Option<i32> {
-    match (left, right) {
-        (Some(left), Some(right)) => Some(left.max(right)),
-        (Some(value), None) | (None, Some(value)) => Some(value),
-        (None, None) => None,
-    }
-}
-
-fn min_bound(left: Option<i32>, right: Option<i32>) -> Option<i32> {
-    match (left, right) {
-        (Some(left), Some(right)) => Some(left.min(right)),
-        (Some(value), None) | (None, Some(value)) => Some(value),
-        (None, None) => None,
-    }
-}
-
 fn negation_error() -> Error {
     Error::Query(
         "a negated term must be combined with a positive term, e.g. `kernel -windows`".into(),
@@ -551,26 +527,34 @@ mod tests {
     use super::*;
 
     fn c(s: &str) -> String {
-        compile(s).unwrap().unwrap()
+        fts(s).unwrap().unwrap()
     }
 
     #[test]
     fn year_ranges() {
-        assert_eq!(parse_year_range("2020").unwrap(), (Some(2020), Some(2020)));
+        assert_eq!(parse_year_range("2020").unwrap(), YearRange::single(2020));
         assert_eq!(
             parse_year_range("2018-2024").unwrap(),
-            (Some(2018), Some(2024))
+            YearRange::new(Some(2018), Some(2024)).unwrap()
         );
-        assert_eq!(parse_year_range("2020-").unwrap(), (Some(2020), None));
-        assert_eq!(parse_year_range("-2019").unwrap(), (None, Some(2019)));
+        assert_eq!(
+            parse_year_range("2020-").unwrap(),
+            YearRange::new(Some(2020), None).unwrap()
+        );
+        assert_eq!(
+            parse_year_range("-2019").unwrap(),
+            YearRange::new(None, Some(2019)).unwrap()
+        );
         assert!(parse_year_range("-").is_err());
         assert!(parse_year_range("abc").is_err());
+        assert!(parse_year_range("2024-2018").is_err());
+        assert!(YearRange::new(None, None).is_err());
     }
 
     #[test]
     fn blank_is_none() {
-        assert!(compile("").unwrap().is_none());
-        assert!(compile("   ").unwrap().is_none());
+        assert!(fts("").unwrap().is_none());
+        assert!(fts("   ").unwrap().is_none());
     }
 
     #[test]
@@ -616,8 +600,19 @@ mod tests {
         assert_eq!(parsed.rank_selectors, vec!["A"]);
         assert_eq!(parsed.tag_selectors, vec!["crypto"]);
         assert_eq!(parsed.doi_terms, vec!["10.1145"]);
-        assert_eq!(parsed.year_min, Some(2020));
-        assert_eq!(parsed.year_max, Some(2024));
+        assert_eq!(
+            parsed.year_ranges,
+            vec![YearRange::new(Some(2020), Some(2024)).unwrap()]
+        );
+    }
+
+    #[test]
+    fn repeated_year_filters_are_collected() {
+        let parsed = parse("year:2018 year:2029").unwrap();
+        assert_eq!(
+            parsed.year_ranges,
+            vec![YearRange::single(2018), YearRange::single(2029)]
+        );
     }
 
     #[test]
@@ -625,7 +620,7 @@ mod tests {
         let parsed = parse("venue:ndss").unwrap();
         assert!(parsed.fts.is_none());
         assert_eq!(parsed.venue_selectors, vec!["ndss"]);
-        assert!(compile("venue:ndss").unwrap().is_none());
+        assert!(fts("venue:ndss").unwrap().is_none());
     }
 
     #[test]
@@ -659,9 +654,9 @@ mod tests {
 
     #[test]
     fn errors() {
-        assert!(compile("-windows").is_err());
-        assert!(compile("(a OR b").is_err());
-        assert!(compile("\"unterminated").is_err());
-        assert!(compile("NOT alone").is_err());
+        assert!(fts("-windows").is_err());
+        assert!(fts("(a OR b").is_err());
+        assert!(fts("\"unterminated").is_err());
+        assert!(fts("NOT alone").is_err());
     }
 }

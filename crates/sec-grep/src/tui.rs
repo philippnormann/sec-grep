@@ -90,7 +90,7 @@ impl App {
                 venues: &[],
                 ranks: &[],
                 tags: &[],
-                year: None,
+                years: &[],
                 sort: self.sort,
                 limit: None,
                 offset: None,

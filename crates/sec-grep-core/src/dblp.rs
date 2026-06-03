@@ -4,21 +4,44 @@ use std::{collections::BTreeMap, time::Duration};
 
 use serde_json::Value;
 
-use crate::config::{DblpPublicationType, Venue};
-use crate::{Paper, Result};
+use crate::config::Venue;
+use crate::{Error, Paper, Result};
 
 pub const DEFAULT_ENDPOINT: &str = "https://sparql.dblp.org/sparql";
+const CONFERENCE_STREAM_PREFIX: &str = "conf/";
+const JOURNAL_STREAM_PREFIX: &str = "journals/";
 
-/// Build the SPARQL query for a single venue stream, bounded by year.
-/// `publ_type` is the dblp rdf:type (`Inproceedings` or `Article`).
-pub fn build_query(
-    stream: &str,
-    publ_type: DblpPublicationType,
-    min_year: i32,
-    max_year: i32,
-) -> String {
-    let publ_type = publ_type.as_dblp_type();
-    format!(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DblpPublicationType {
+    Inproceedings,
+    Article,
+}
+
+impl DblpPublicationType {
+    fn as_dblp_type(self) -> &'static str {
+        match self {
+            DblpPublicationType::Inproceedings => "Inproceedings",
+            DblpPublicationType::Article => "Article",
+        }
+    }
+}
+
+fn publication_type_for_stream(stream: &str) -> Result<DblpPublicationType> {
+    if stream.starts_with(CONFERENCE_STREAM_PREFIX) {
+        Ok(DblpPublicationType::Inproceedings)
+    } else if stream.starts_with(JOURNAL_STREAM_PREFIX) {
+        Ok(DblpPublicationType::Article)
+    } else {
+        Err(Error::Config(format!(
+            "unsupported DBLP stream `{stream}`; expected `{CONFERENCE_STREAM_PREFIX}...` or `{JOURNAL_STREAM_PREFIX}...`"
+        )))
+    }
+}
+
+/// Build the SPARQL query for a single DBLP venue stream, bounded by year.
+pub fn build_query(stream: &str, min_year: i32, max_year: i32) -> Result<String> {
+    let publ_type = publication_type_for_stream(stream)?.as_dblp_type();
+    Ok(format!(
         r#"PREFIX dblp: <https://dblp.org/rdf/schema#>
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
@@ -33,8 +56,8 @@ SELECT ?publ ?title ?year ?ordinal ?author ?url WHERE {{
   OPTIONAL {{ ?publ dblp:primaryDocumentPage ?url . }}
   FILTER(?year >= "{min_year}"^^xsd:gYear && ?year <= "{max_year}"^^xsd:gYear)
 }}
-ORDER BY ?publ xsd:integer(?ordinal)"#
-    )
+ORDER BY ?publ xsd:integer(?ordinal)"#,
+    ))
 }
 
 /// dblp disambiguates homonyms with a trailing 4-digit id ("Name 0001");
@@ -161,7 +184,7 @@ impl Dblp {
         min_year: i32,
         max_year: i32,
     ) -> Result<Vec<Paper>> {
-        let query = build_query(&venue.dblp_stream, venue.publ_type, min_year, max_year);
+        let query = build_query(&venue.dblp_stream, min_year, max_year)?;
         let resp = self
             .client
             .get(&self.endpoint)
@@ -203,11 +226,23 @@ mod tests {
 
     #[test]
     fn query_contains_stream_and_years() {
-        let q = build_query("conf/ndss", DblpPublicationType::Inproceedings, 2000, 2025);
+        let q = build_query("conf/ndss", 2000, 2025).unwrap();
         assert!(q.contains("https://dblp.org/streams/conf/ndss"));
         assert!(q.contains("rdf:type dblp:Inproceedings"));
         assert!(q.contains("\"2000\"^^xsd:gYear"));
         assert!(q.contains("\"2025\"^^xsd:gYear"));
+    }
+
+    #[test]
+    fn query_infers_article_type_for_journal_streams() {
+        let q = build_query("journals/tops", 2000, 2025).unwrap();
+        assert!(q.contains("https://dblp.org/streams/journals/tops"));
+        assert!(q.contains("rdf:type dblp:Article"));
+    }
+
+    #[test]
+    fn query_rejects_unsupported_stream_prefixes() {
+        assert!(build_query("series/example", 2000, 2025).is_err());
     }
 
     #[test]

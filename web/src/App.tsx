@@ -194,7 +194,7 @@ export default function App() {
           )}
           {total === null && !error && results.length > 0 && (
             <span>
-              {results.length}+ papers · sort {sort} · {selected + 1}/{results.length}
+              {results.length}{hasMore ? '+' : ''} papers · sort {sort} · {selected + 1}/{results.length}
             </span>
           )}
           {loading && <span className="spinner">Loading…</span>}

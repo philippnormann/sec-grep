@@ -80,3 +80,11 @@ venues:
     rank: A
     tags: [systems, crypto]
     abstract_source: ieee
+
+  - id: CSF
+    name: IEEE Computer Security Foundations Symposium (CSF)
+    dblp_stream: conf/csfw
+    aliases: [csf, csfw]
+    rank: A
+    tags: ["formal-methods", crypto]
+    abstract_source: ieee

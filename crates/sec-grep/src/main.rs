@@ -60,6 +60,10 @@ struct Cli {
     #[arg(long)]
     limit: Option<usize>,
 
+    /// Offset number of results.
+    #[arg(long)]
+    offset: Option<usize>,
+
     /// Columns for table/csv output (comma-separated).
     #[arg(long, value_delimiter = ',')]
     fields: Vec<String>,
@@ -237,7 +241,10 @@ fn config_path(cli: &Cli, paths: &Paths) -> PathBuf {
 }
 
 fn db_path(cli: &Cli, paths: &Paths) -> PathBuf {
-    cli.db.clone().unwrap_or_else(|| paths.db_path())
+    cli.db
+        .clone()
+        .or_else(|| std::env::var("SEC_GREP_DB").ok().map(PathBuf::from))
+        .unwrap_or_else(|| paths.db_path())
 }
 
 fn open_db(cli: &Cli, paths: &Paths) -> Result<Database> {
@@ -279,7 +286,7 @@ fn cmd_search(cli: &Cli, paths: &Paths, config: &Config) -> Result<()> {
             year: cli.year.as_deref(),
             sort: cli.sort.unwrap_or(SortArg::Relevance).into(),
             limit: cli.limit,
-            offset: None,
+            offset: cli.offset,
         },
     )?;
     let papers = db.search(&search)?;

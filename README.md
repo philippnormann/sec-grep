@@ -31,12 +31,41 @@ cargo install --path crates/sec-grep
 Cargo installs to `~/.cargo/bin` on macOS/Linux and
 `%USERPROFILE%\.cargo\bin` on Windows. Make sure that directory is on `PATH`.
 
+### Docker / Podman
+
+Build the image (includes CLI, TUI, and Web UI):
+
+```sh
+podman build -t sec-grep:latest .
+```
+
+Run the Web UI:
+
+```sh
+podman-compose up -d
+# open http://localhost:5002
+```
+
 ## Use
 
 ```sh
 sec-grep init
 sec-grep update --since 2018
 sec-grep --tui
+```
+
+Run the TUI in a container:
+
+```sh
+podman-compose run --rm web /usr/local/bin/sec-grep init
+podman-compose run --rm web /usr/local/bin/sec-grep update --since 2018
+podman run --rm -it -v sec-grep_sec-grep-data:/data sec-grep:latest /usr/local/bin/sec-grep --tui
+```
+
+Run CLI in a container:
+
+```sh
+podman run --rm -v sec-grep_sec-grep-data:/data sec-grep:latest /usr/local/bin/sec-grep 'fuzzing' --year 2024-
 ```
 
 In the TUI, use `Tab` to cycle sort modes, arrow keys to move, and `Enter` to

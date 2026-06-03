@@ -18,16 +18,7 @@ app.use(express.static(path.join(__dirname, 'dist')));
 // Search endpoint: calls sec-grep with JSON output
 app.get('/api/search', (req, res) => {
   const q = req.query.q ?? '';
-
-  const {
-    venue,
-    year,
-    rank,
-    tag,
-    sort = 'relevance',
-    limit = '320',
-    offset = '0',
-  } = req.query;
+  const { sort = 'year', limit = '320', offset = '0' } = req.query;
 
   const args = [
     '--format',
@@ -40,19 +31,6 @@ app.get('/api/search', (req, res) => {
     String(offset),
   ];
 
-  if (venue) {
-    const list = Array.isArray(venue) ? venue : [venue];
-    list.forEach((v) => args.push('--venue', v));
-  }
-  if (year) args.push('--year', String(year));
-  if (rank) {
-    const list = Array.isArray(rank) ? rank : [rank];
-    list.forEach((r) => args.push('--rank', r));
-  }
-  if (tag) {
-    const list = Array.isArray(tag) ? tag : [tag];
-    list.forEach((t) => args.push('--tag', t));
-  }
   if (q) args.push(String(q));
 
   const child = spawn('sec-grep', args, {

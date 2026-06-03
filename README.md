@@ -16,7 +16,7 @@ authors, abstract, venue, year, rank, tag, and DOI.
 
 ## Install
 
-Requires Rust 1.86 or newer.
+Requires Rust 1.95 or newer.
 
 ```sh
 cargo install --git https://github.com/philippnormann/sec-grep sec-grep

@@ -123,6 +123,13 @@ export default function App() {
     return () => observer.disconnect();
   }, [loadMore]);
 
+  const openSelected = useCallback(() => {
+    const paper = results[selected];
+    if (!paper) return;
+    const url = paper.url || (paper.doi ? `https://doi.org/${paper.doi}` : '');
+    if (url) window.open(url, '_blank');
+  }, [results, selected]);
+
   // Keyboard navigation
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -132,7 +139,7 @@ export default function App() {
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setSelected((prev) => Math.max(prev - 1, 0));
-      } else if (e.key === 'Enter' && document.activeElement !== inputRef.current) {
+      } else if (e.key === 'Enter') {
         e.preventDefault();
         openSelected();
       } else if (e.key === 'Tab' && !e.shiftKey) {
@@ -145,19 +152,12 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [total, results.length]);
+  }, [total, results.length, openSelected]);
 
   // Scroll selected item into view
   useEffect(() => {
     selectedRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [selected]);
-
-  const openSelected = () => {
-    const paper = results[selected];
-    if (!paper) return;
-    const url = paper.url || (paper.doi ? `https://doi.org/${paper.doi}` : '');
-    if (url) window.open(url, '_blank');
-  };
 
   const detailPaper = results[selected] ?? undefined;
 
@@ -172,6 +172,12 @@ export default function App() {
             placeholder="all papers"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                openSelected();
+              }
+            }}
           />
           <div className="sort-bar">
             {(['year', 'relevance', 'venue'] as const).map((s) => (

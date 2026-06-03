@@ -50,7 +50,7 @@ struct Cli {
 
     /// Result ordering (default: relevance).
     #[arg(long, value_enum)]
-    sort: Option<SortArg>,
+    sort: Option<SortMode>,
 
     /// Output format (default: table).
     #[arg(long, value_parser = parse_format_arg)]
@@ -136,21 +136,12 @@ struct EnrichArgs {
     limit: Option<usize>,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
-enum SortArg {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub(crate) enum SortMode {
     Relevance,
     Year,
     Venue,
-}
-
-impl From<SortArg> for Sort {
-    fn from(s: SortArg) -> Self {
-        match s {
-            SortArg::Relevance => Sort::Relevance,
-            SortArg::Year => Sort::Year,
-            SortArg::Venue => Sort::Venue,
-        }
-    }
+    Rank,
 }
 
 pub(crate) struct SearchOptions<'a> {
@@ -158,7 +149,7 @@ pub(crate) struct SearchOptions<'a> {
     pub(crate) ranks: &'a [String],
     pub(crate) tags: &'a [String],
     pub(crate) years: &'a [query::YearRange],
-    pub(crate) sort: Sort,
+    pub(crate) sort: SortMode,
     pub(crate) limit: Option<usize>,
     pub(crate) offset: Option<usize>,
 }
@@ -277,7 +268,7 @@ fn cmd_search(cli: &Cli, paths: &Paths, config: &Config) -> Result<()> {
             ranks: &cli.rank,
             tags: &cli.tag,
             years: &cli.year,
-            sort: cli.sort.unwrap_or(SortArg::Relevance).into(),
+            sort: cli.sort.unwrap_or(SortMode::Relevance),
             limit: cli.limit,
             offset: None,
         },
@@ -312,12 +303,19 @@ pub(crate) fn build_search(
     let venue_filter =
         config.resolve_venue_filter(&venue_selectors, &rank_selectors, &tag_selectors)?;
 
+    let sort = match options.sort {
+        SortMode::Relevance => Sort::Relevance,
+        SortMode::Year => Sort::Year,
+        SortMode::Venue => Sort::Venue,
+        SortMode::Rank => Sort::Rank(config.rank_sort_order()),
+    };
+
     Ok(Search {
         fts: parsed.fts,
         venue_filter,
         doi_terms: parsed.doi_terms,
         year_ranges,
-        sort: options.sort,
+        sort,
         limit: options.limit,
         offset: options.offset,
     })
@@ -492,7 +490,7 @@ mod tests {
                 ranks: &ranks,
                 tags: &[],
                 years: &[],
-                sort: Sort::Relevance,
+                sort: SortMode::Relevance,
                 limit: None,
                 offset: None,
             },
@@ -516,7 +514,7 @@ mod tests {
                 ranks: &[],
                 tags: &[],
                 years: &[],
-                sort: Sort::Relevance,
+                sort: SortMode::Relevance,
                 limit: None,
                 offset: None,
             },
@@ -531,7 +529,7 @@ mod tests {
                 ranks: &ranks,
                 tags: &tags,
                 years: &[],
-                sort: Sort::Relevance,
+                sort: SortMode::Relevance,
                 limit: None,
                 offset: None,
             },
@@ -554,7 +552,7 @@ mod tests {
                 ranks: &ranks,
                 tags: &[],
                 years: &[],
-                sort: Sort::Relevance,
+                sort: SortMode::Relevance,
                 limit: None,
                 offset: None,
             },
@@ -569,7 +567,7 @@ mod tests {
                 ranks: &[],
                 tags: &[],
                 years: &[],
-                sort: Sort::Relevance,
+                sort: SortMode::Relevance,
                 limit: None,
                 offset: None,
             },
@@ -625,7 +623,7 @@ mod tests {
                 ranks: &[],
                 tags: &[],
                 years: &years,
-                sort: Sort::Relevance,
+                sort: SortMode::Relevance,
                 limit: None,
                 offset: None,
             },

@@ -4,7 +4,7 @@ use std::path::Path;
 
 use rusqlite::{params_from_iter, types::Value, Connection, OpenFlags, OptionalExtension, Row};
 
-use crate::config::VenueFilter;
+use crate::config::{RankSortOrder, VenueFilter};
 use crate::query::YearRange;
 use crate::{Paper, Result};
 
@@ -57,13 +57,15 @@ const PAPER_COLUMNS_WITH_ALIAS: &str =
     "p.dblp_key, p.venue, p.year, p.title, p.authors, p.doi, p.url, p.abstract";
 
 /// How to order search results.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum Sort {
-    /// BM25 relevance when a full-text query is present, else by year.
+    /// BM25 relevance for full-text searches; otherwise year descending.
     #[default]
     Relevance,
     Year,
     Venue,
+    /// Venue groups in priority order; venues outside the groups sort last.
+    Rank(RankSortOrder),
 }
 
 /// A compiled search request. `fts` is an FTS5 MATCH expression (already
@@ -205,13 +207,7 @@ impl Database {
             return Ok(Vec::new());
         }
         let mut parts = search_query_parts(q);
-        let order = match q.sort {
-            Sort::Relevance if q.fts.is_some() => {
-                "ORDER BY bm25(papers_fts), p.year DESC".to_string()
-            }
-            Sort::Venue => "ORDER BY p.venue ASC, p.year DESC".to_string(),
-            _ => "ORDER BY p.year DESC, p.venue ASC".to_string(),
-        };
+        let order = order_clause(q, &mut parts.args);
 
         let mut sql = format!(
             "SELECT {PAPER_COLUMNS_WITH_ALIAS} FROM {} {} {order}",
@@ -323,6 +319,38 @@ fn append_year_range_args(args: &mut Vec<Value>, ranges: &[YearRange]) {
             (None, None) => unreachable!("year parser rejects empty ranges"),
         }
     }
+}
+
+fn order_clause(q: &Search, args: &mut Vec<Value>) -> String {
+    match &q.sort {
+        Sort::Relevance if q.fts.is_some() => "ORDER BY bm25(papers_fts), p.year DESC".to_string(),
+        Sort::Venue => "ORDER BY p.venue ASC, p.year DESC".to_string(),
+        Sort::Rank(order) if !order.is_empty() => {
+            let groups = order.groups();
+            let rank_expr = rank_groups_clause("p.venue", args.len() + 1, groups);
+            for venues in groups {
+                append_string_args(args, venues);
+            }
+            format!("ORDER BY {rank_expr}, p.year DESC, p.venue ASC")
+        }
+        Sort::Relevance | Sort::Year | Sort::Rank(_) => {
+            "ORDER BY p.year DESC, p.venue ASC".to_string()
+        }
+    }
+}
+
+fn rank_groups_clause(column: &str, start: usize, groups: &[Vec<String>]) -> String {
+    let mut next = start;
+    let mut clauses = Vec::new();
+    for (rank_index, venues) in groups.iter().enumerate() {
+        if venues.is_empty() {
+            continue;
+        }
+        let clause = in_clause(column, next, venues.len());
+        next += venues.len();
+        clauses.push(format!("WHEN {clause} THEN {rank_index}"));
+    }
+    format!("CASE {} ELSE {} END", clauses.join(" "), groups.len())
 }
 
 struct SearchQueryParts {
@@ -591,6 +619,25 @@ mod tests {
             .map(|paper| paper.dblp_key.as_str())
             .collect::<Vec<_>>();
         assert_eq!(keys, vec!["k2", "k3"]);
+    }
+
+    #[test]
+    fn rank_sort_groups_venues_before_year() {
+        let db = seeded();
+        let hits = db
+            .search(&Search {
+                sort: Sort::Rank(RankSortOrder::new(vec![
+                    vec!["NDSS".into(), "SP".into()],
+                    vec!["CCS".into()],
+                ])),
+                ..Default::default()
+            })
+            .unwrap();
+        let keys = hits
+            .iter()
+            .map(|paper| paper.dblp_key.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(keys, vec!["k1", "k3", "k2"]);
     }
 
     #[test]

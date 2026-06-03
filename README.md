@@ -42,6 +42,9 @@ sec-grep --tui
 In the TUI, use `Tab` to cycle sort modes, arrow keys to move, and `Enter` to
 open the selected paper URL.
 
+Sort CLI results with `--sort relevance`, `--sort year`, `--sort venue`, or
+`--sort rank`.
+
 Search from the shell:
 
 ```sh

@@ -1,6 +1,7 @@
 //! Interactive search TUI: type a query, browse results, read details.
 
 use std::{
+    collections::HashMap,
     io,
     process::{Command, Stdio},
 };
@@ -13,9 +14,9 @@ use crossterm::{
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph, Wrap};
 
-use crate::{build_search, SearchOptions};
+use crate::{build_search, SearchOptions, SortMode};
 use sec_grep_core::config::Config;
-use sec_grep_core::db::{Database, Search, Sort};
+use sec_grep_core::db::{Database, Search};
 use sec_grep_core::{Error as CoreError, Paper, Result as CoreResult};
 use url::Url;
 
@@ -29,13 +30,22 @@ const TEXT: Color = Color::Rgb(226, 232, 240);
 const SELECTED_BG: Color = Color::Rgb(30, 41, 59);
 const MIN_WINDOW_SIZE: usize = 128;
 const MAX_WINDOW_SIZE: usize = 512;
+const VENUE_COL_WIDTH: usize = 10;
+const MIN_RANK_COL_WIDTH: usize = 4;
+const SORT_MODES: [SortMode; 4] = [
+    SortMode::Year,
+    SortMode::Rank,
+    SortMode::Relevance,
+    SortMode::Venue,
+];
 
 struct App {
     db: Database,
     config: Config,
+    rank_display: RankDisplay,
     input: String,
     cursor: usize,
-    sort: Sort,
+    sort: SortMode,
     results: Vec<Paper>,
     window_start: usize,
     total: Option<usize>,
@@ -43,14 +53,64 @@ struct App {
     status: String,
 }
 
+struct RankDisplay {
+    ranks: HashMap<String, String>,
+    cells: HashMap<String, String>,
+    blank_cell: String,
+}
+
+impl RankDisplay {
+    fn from_config(config: &Config) -> Self {
+        let ranks = config
+            .venues
+            .iter()
+            .filter_map(|venue| {
+                let rank = venue.rank.as_deref().filter(|rank| !rank.is_empty())?;
+                Some((venue.id.clone(), rank.to_string()))
+            })
+            .collect::<HashMap<_, _>>();
+        let width = ranks
+            .values()
+            .map(|rank| rank.chars().count() + 2)
+            .max()
+            .unwrap_or(0)
+            .max(MIN_RANK_COL_WIDTH);
+        let cells = ranks
+            .iter()
+            .map(|(venue, rank)| {
+                let label = format!("[{rank}]");
+                (venue.clone(), format!("{label:<width$}"))
+            })
+            .collect();
+        Self {
+            ranks,
+            cells,
+            blank_cell: format!("{:<width$}", ""),
+        }
+    }
+
+    fn rank(&self, venue: &str) -> Option<&str> {
+        self.ranks.get(venue).map(String::as_str)
+    }
+
+    fn cell(&self, venue: &str) -> &str {
+        self.cells
+            .get(venue)
+            .map(String::as_str)
+            .unwrap_or(&self.blank_cell)
+    }
+}
+
 impl App {
     fn new(db: Database, config: Config) -> Self {
+        let rank_display = RankDisplay::from_config(&config);
         let mut app = Self {
             db,
             config,
+            rank_display,
             input: String::new(),
             cursor: 0,
-            sort: Sort::Year,
+            sort: SortMode::Year,
             results: Vec::new(),
             window_start: 0,
             total: Some(0),
@@ -396,7 +456,7 @@ fn draw(f: &mut Frame, app: &App) {
     let local_end = (local_start + page_size).min(app.results.len());
     let items: Vec<ListItem> = app.results[local_start..local_end]
         .iter()
-        .map(|paper| result_item(&app.config, paper))
+        .map(|paper| result_item(&app.rank_display, paper))
         .collect();
     let mut state = ListState::default();
     if !items.is_empty() && app.selected >= start {
@@ -587,39 +647,42 @@ fn result_status(total: Option<usize>, known: usize) -> String {
     }
 }
 
-fn next_sort(sort: Sort, direction: SortDirection) -> Sort {
-    match (sort, direction) {
-        (Sort::Year, SortDirection::Forward) => Sort::Relevance,
-        (Sort::Relevance, SortDirection::Forward) => Sort::Venue,
-        (Sort::Venue, SortDirection::Forward) => Sort::Year,
-        (Sort::Year, SortDirection::Backward) => Sort::Venue,
-        (Sort::Relevance, SortDirection::Backward) => Sort::Year,
-        (Sort::Venue, SortDirection::Backward) => Sort::Relevance,
-    }
+fn next_sort(sort: SortMode, direction: SortDirection) -> SortMode {
+    let index = SORT_MODES
+        .iter()
+        .position(|mode| *mode == sort)
+        .unwrap_or(0);
+    let next = match direction {
+        SortDirection::Forward => (index + 1) % SORT_MODES.len(),
+        SortDirection::Backward => (index + SORT_MODES.len() - 1) % SORT_MODES.len(),
+    };
+    SORT_MODES[next]
 }
 
-fn sort_label(sort: Sort) -> &'static str {
+fn sort_label(sort: SortMode) -> &'static str {
     match sort {
-        Sort::Year => "year",
-        Sort::Relevance => "relevance",
-        Sort::Venue => "venue",
+        SortMode::Year => "year",
+        SortMode::Rank => "rank",
+        SortMode::Relevance => "relevance",
+        SortMode::Venue => "venue",
     }
 }
 
-fn result_item(config: &Config, p: &Paper) -> ListItem<'static> {
+fn result_item(rank_display: &RankDisplay, p: &Paper) -> ListItem<'static> {
     let mut spans = vec![
         Span::styled(
-            format!("{:<10}", p.venue),
+            format!("{:<VENUE_COL_WIDTH$}", p.venue),
             Style::default().fg(VENUE).add_modifier(Modifier::BOLD),
         ),
         Span::raw(" "),
         Span::styled(format!("{:>4}", p.year), Style::default().fg(MUTED)),
+        Span::raw(" "),
+        Span::styled(
+            rank_display.cell(&p.venue).to_string(),
+            Style::default().fg(DIM),
+        ),
+        Span::raw("  "),
     ];
-    if let Some(rank) = venue_rank(config, &p.venue) {
-        spans.push(Span::raw(" "));
-        spans.push(Span::styled(format!("[{rank}]"), Style::default().fg(DIM)));
-    }
-    spans.push(Span::raw("  "));
     spans.push(Span::styled(p.title.clone(), Style::default().fg(TEXT)));
     ListItem::new(Line::from(spans))
 }
@@ -637,7 +700,7 @@ fn detail(app: &App) -> Paragraph<'static> {
             p.title.clone(),
             Style::default().fg(TEXT).add_modifier(Modifier::BOLD),
         )),
-        Line::from(metadata_spans(&app.config, p)),
+        Line::from(metadata_spans(&app.rank_display, p)),
     ];
     lines.push(Line::from(""));
     lines.push(label_line("authors", &p.authors, MUTED));
@@ -701,7 +764,7 @@ fn query_error_status(error: &CoreError) -> String {
     }
 }
 
-fn metadata_spans(config: &Config, p: &Paper) -> Vec<Span<'static>> {
+fn metadata_spans(rank_display: &RankDisplay, p: &Paper) -> Vec<Span<'static>> {
     let mut spans = Vec::new();
     push_meta(
         &mut spans,
@@ -709,7 +772,7 @@ fn metadata_spans(config: &Config, p: &Paper) -> Vec<Span<'static>> {
         Style::default().fg(VENUE).add_modifier(Modifier::BOLD),
     );
     push_meta(&mut spans, p.year.to_string(), Style::default().fg(MUTED));
-    if let Some(rank) = venue_rank(config, &p.venue) {
+    if let Some(rank) = rank_display.rank(&p.venue) {
         push_meta(
             &mut spans,
             format!("rank {rank}"),
@@ -734,14 +797,6 @@ fn label_line(label: &str, value: &str, value_color: Color) -> Line<'static> {
         ),
         Span::styled(value.to_string(), Style::default().fg(value_color)),
     ])
-}
-
-fn venue_rank(config: &Config, venue: &str) -> Option<String> {
-    config
-        .venue(venue)
-        .and_then(|v| v.rank.as_deref())
-        .filter(|rank| !rank.is_empty())
-        .map(str::to_string)
 }
 
 fn doi_url(paper: &Paper) -> Option<String> {
@@ -797,6 +852,7 @@ fn opener_command(url: &str) -> Command {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sec_grep_core::config::{Defaults, Venue};
 
     fn paper(index: usize) -> Paper {
         Paper {
@@ -808,6 +864,24 @@ mod tests {
             doi: None,
             url: None,
             abstract_text: None,
+        }
+    }
+
+    fn config_with_ranks(ranks: &[(&str, &str)]) -> Config {
+        Config {
+            defaults: Defaults::default(),
+            venues: ranks
+                .iter()
+                .map(|(id, rank)| Venue {
+                    id: id.to_string(),
+                    name: String::new(),
+                    dblp_stream: format!("conf/{}", id.to_ascii_lowercase()),
+                    aliases: Vec::new(),
+                    rank: (!rank.is_empty()).then(|| rank.to_string()),
+                    tags: Vec::new(),
+                    abstract_source: None,
+                })
+                .collect(),
         }
     }
 
@@ -845,6 +919,44 @@ mod tests {
         assert!(browser_url("http://example.com/paper").is_some());
         assert!(browser_url("file:///tmp/paper").is_none());
         assert!(browser_url("mailto:paper@example.com").is_none());
+    }
+
+    #[test]
+    fn sort_cycle_includes_rank() {
+        assert_eq!(
+            next_sort(SortMode::Year, SortDirection::Forward),
+            SortMode::Rank
+        );
+        assert_eq!(
+            next_sort(SortMode::Rank, SortDirection::Forward),
+            SortMode::Relevance
+        );
+        assert_eq!(
+            next_sort(SortMode::Relevance, SortDirection::Backward),
+            SortMode::Rank
+        );
+        assert_eq!(
+            next_sort(SortMode::Rank, SortDirection::Backward),
+            SortMode::Year
+        );
+    }
+
+    #[test]
+    fn rank_display_uses_configured_width() {
+        let cfg = config_with_ranks(&[("NDSS", "A*"), ("RAID", "A")]);
+        let display = RankDisplay::from_config(&cfg);
+        assert_eq!(display.cell("NDSS"), "[A*]");
+        assert_eq!(display.cell("RAID"), "[A] ");
+        assert_eq!(display.cell("UNKNOWN"), "    ");
+        assert_eq!(display.rank("NDSS"), Some("A*"));
+    }
+
+    #[test]
+    fn rank_display_expands_for_longer_configured_ranks() {
+        let cfg = config_with_ranks(&[("NDSS", "A-plus"), ("RAID", "A")]);
+        let display = RankDisplay::from_config(&cfg);
+        assert_eq!(display.cell("NDSS"), "[A-plus]");
+        assert_eq!(display.cell("RAID"), "[A]     ");
     }
 
     #[test]

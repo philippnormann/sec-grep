@@ -31,6 +31,8 @@ cargo install --path crates/sec-grep
 Cargo installs to `~/.cargo/bin` on macOS/Linux and
 `%USERPROFILE%\.cargo\bin` on Windows. Make sure that directory is on `PATH`.
 
+Or use [`nix`](https://nixos.org/): e.g., `nix run "github:philippnormann/sec-grep" -- <arguements>` to run the utility directly.
+
 ## Use
 
 ```sh

@@ -5,8 +5,6 @@ services:
       dockerfile: Dockerfile
     ports:
       - "5002:5002"
-    environment:
-      - SEC_GREP_DB=/data/papers.db
     volumes:
       - sec-grep-data:/data
     restart: unless-stopped

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>sec-grep web</title>
+<link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <div class="search-row">
+      <input id="search" class="search-input" type="text" placeholder="all papers" value="" autocomplete="off" />
+      <div class="sort-bar">
+        <button class="sort-btn" data-sort="year">sort year</button>
+        <button class="sort-btn" data-sort="relevance">sort relevance</button>
+        <button class="sort-btn" data-sort="venue">sort venue</button>
+      </div>
+    </div>
+    <div id="status" class="status"></div>
+  </header>
+  <main class="main">
+    <section id="results" class="results"></section>
+    <aside id="detail" class="detail"></aside>
+  </main>
+  <footer class="footer">
+    <span>Tab sort · Enter open · ↑↓ move · <code>"phrase"</code> · title:term · venue:ndss · year:2020</span>
+  </footer>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

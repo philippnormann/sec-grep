@@ -243,7 +243,6 @@ fn config_path(cli: &Cli, paths: &Paths) -> PathBuf {
 fn db_path(cli: &Cli, paths: &Paths) -> PathBuf {
     cli.db
         .clone()
-        .or_else(|| std::env::var("SEC_GREP_DB").ok().map(PathBuf::from))
         .unwrap_or_else(|| paths.db_path())
 }
 

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/sec-grep-core", "crates/sec-grep"]
+members = ["crates/sec-grep-core", "crates/sec-grep", "crates/sec-grep-web"]
 
 [workspace.package]
 version = "0.1.0"
@@ -31,3 +31,4 @@ crossterm = "0.29"
 directories = "6"
 tempfile = "3"
 url = "2"
+axum = "0.8"

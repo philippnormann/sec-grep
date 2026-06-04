@@ -16,7 +16,7 @@ authors, abstract, venue, year, rank, tag, and DOI.
 
 ## Install
 
-Requires Rust 1.86 or newer.
+Requires Rust 1.95 or newer.
 
 ```sh
 cargo install --git https://github.com/philippnormann/sec-grep sec-grep
@@ -30,6 +30,13 @@ cargo install --path crates/sec-grep
 
 Cargo installs to `~/.cargo/bin` on macOS/Linux and
 `%USERPROFILE%\.cargo\bin` on Windows. Make sure that directory is on `PATH`.
+
+Or use [`nix`](https://nixos.org/):
+
+```sh
+nix run "github:philippnormann/sec-grep" -- <arguments> # run once
+nix shell "github:philippnormann/sec-grep"              # add to PATH
+```
 
 ## Use
 

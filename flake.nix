@@ -59,8 +59,6 @@
           treefmt.config = {
             projectRootFile = "flake.nix";
             programs = {
-              yamlfmt.enable = true;
-              rustfmt.enable =  true;
               nixfmt.enable = true;
             };
           };

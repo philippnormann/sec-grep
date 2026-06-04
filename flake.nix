@@ -40,7 +40,7 @@
         }:
         let
           src = ./.;
-          manifest = (pkgs.lib.importTOML "${src}/Cargo.toml").package;
+          manifest = (pkgs.lib.importTOML "${src}/Cargo.toml").workspace.package;
           secGrep =
             with pkgs;
             rustPlatform.buildRustPackage {

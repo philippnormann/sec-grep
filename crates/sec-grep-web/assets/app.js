@@ -21,23 +21,10 @@ const state = {
   error: '',
 };
 
-let abortController = null;
 let debounceTimer = null;
 let sentinelObserver = null;
 
 function init() {
-  cacheDom();
-  bindEvents();
-  setupInfiniteScroll();
-  renderSortButtons();
-  renderStatus();
-
-  runSearch({ reset: true }).then(() => {
-    dom.searchInput.focus();
-  });
-}
-
-function cacheDom() {
   dom.searchInput = document.getElementById('search');
   dom.results = document.getElementById('results');
   dom.status = document.getElementById('status');
@@ -47,6 +34,15 @@ function cacheDom() {
   dom.sentinel = document.createElement('div');
   dom.sentinel.className = 'sentinel';
   dom.results.appendChild(dom.sentinel);
+
+  bindEvents();
+  setupInfiniteScroll();
+  renderSortButtons();
+  renderStatus();
+
+  runSearch({ reset: true }).then(() => {
+    dom.searchInput.focus();
+  });
 }
 
 function bindEvents() {
@@ -176,65 +172,20 @@ async function runSearch({ reset }) {
     return;
   }
 
-  const offset = reset ? 0 : state.results.length;
-  const response = await requestPapers({
-    query: state.query,
-    sort: state.sort,
-    offset,
-    limit: LOAD_BATCH,
-  });
-
-  if (!response) {
-    return;
-  }
-
-  const { papers } = response;
-
-  if (reset) {
-    state.results = papers;
-    state.selected = 0;
-    state.hasMore = papers.length >= LOAD_BATCH;
-    dom.results.scrollTop = 0;
-    renderResults();
-  } else {
-    if (papers.length === 0) {
-      state.hasMore = false;
-      renderStatus();
-      return;
-    }
-
-    const startIndex = state.results.length;
-    state.results = state.results.concat(papers);
-    state.hasMore = papers.length >= LOAD_BATCH;
-    appendResults(papers, startIndex);
-  }
-
-  renderDetail();
-  renderStatus();
-}
-
-async function requestPapers({ query, sort, offset, limit }) {
-  if (abortController) {
-    abortController.abort();
-  }
-
-  const controller = new AbortController();
-  abortController = controller;
   state.loading = true;
   state.error = '';
   renderStatus();
 
-  try {
-    const params = new URLSearchParams({
-      q: query,
-      sort,
-      limit: String(limit),
-      offset: String(offset),
-    });
+  const offset = reset ? 0 : state.results.length;
+  const params = new URLSearchParams({
+    q: state.query,
+    sort: state.sort,
+    limit: String(LOAD_BATCH),
+    offset: String(offset),
+  });
 
-    const response = await fetch(`/api/search?${params.toString()}`, {
-      signal: controller.signal,
-    });
+  try {
+    const response = await fetch(`/api/search?${params.toString()}`);
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -242,23 +193,35 @@ async function requestPapers({ query, sort, offset, limit }) {
 
     const data = await response.json();
     state.error = typeof data.error === 'string' ? data.error : '';
+    const papers = Array.isArray(data.papers) ? data.papers : [];
 
-    return {
-      papers: Array.isArray(data.papers) ? data.papers : [],
-    };
+    if (reset) {
+      state.results = papers;
+      state.selected = 0;
+      state.hasMore = papers.length >= LOAD_BATCH;
+      dom.results.scrollTop = 0;
+      dom.results.querySelectorAll('.result-row').forEach((row) => row.remove());
+      appendResults(papers, 0);
+    } else {
+      if (papers.length === 0) {
+        state.hasMore = false;
+        renderStatus();
+        return;
+      }
+      const startIndex = state.results.length;
+      state.results = state.results.concat(papers);
+      state.hasMore = papers.length >= LOAD_BATCH;
+      appendResults(papers, startIndex);
+    }
+
+    renderDetail();
+    renderStatus();
   } catch (error) {
-    if (error.name === 'AbortError') {
-      return null;
-    }
-
     state.error = error.message || 'search failed';
-    return null;
+    renderStatus();
   } finally {
-    if (abortController === controller) {
-      abortController = null;
-      state.loading = false;
-      renderStatus();
-    }
+    state.loading = false;
+    renderStatus();
   }
 }
 
@@ -268,36 +231,25 @@ function renderSortButtons() {
   });
 }
 
-function renderResults() {
-  dom.results.querySelectorAll('.result-row').forEach((row) => row.remove());
-  appendResults(state.results, 0);
-}
-
 function appendResults(papers, startIndex) {
   const fragment = document.createDocumentFragment();
 
   papers.forEach((paper, offset) => {
-    fragment.appendChild(createResultRow(paper, startIndex + offset));
+    const index = startIndex + offset;
+    const row = document.createElement('div');
+    row.className = 'result-row';
+    row.dataset.index = String(index);
+    if (index === state.selected) {
+      row.classList.add('selected');
+    }
+    row.appendChild(el('span', 'col-venue', paper.venue || ''));
+    row.appendChild(el('span', 'col-year', paper.year ?? ''));
+    row.appendChild(el('span', 'col-title', paper.title || ''));
+    row.appendChild(el('span', 'col-authors', paper.authors || ''));
+    fragment.appendChild(row);
   });
 
   dom.results.insertBefore(fragment, dom.sentinel);
-}
-
-function createResultRow(paper, index) {
-  const row = document.createElement('div');
-  row.className = 'result-row';
-  row.dataset.index = String(index);
-
-  if (index === state.selected) {
-    row.classList.add('selected');
-  }
-
-  row.appendChild(createTextElement('span', 'col-venue', paper.venue || ''));
-  row.appendChild(createTextElement('span', 'col-year', formatYear(paper.year)));
-  row.appendChild(createTextElement('span', 'col-title', paper.title || ''));
-  row.appendChild(createTextElement('span', 'col-authors', paper.authors || ''));
-
-  return row;
 }
 
 function setSelected(index, options = {}) {
@@ -305,12 +257,15 @@ function setSelected(index, options = {}) {
     return;
   }
 
-  const nextIndex = clamp(index, 0, state.results.length - 1);
+  const nextIndex = Math.max(0, Math.min(index, state.results.length - 1));
   const previousIndex = state.selected;
 
   if (nextIndex === previousIndex) {
     if (options.scrollIntoView) {
-      scrollRowIntoView(nextIndex);
+      const row = dom.results.querySelector(`.result-row[data-index="${nextIndex}"]`);
+      if (row) {
+        row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
     }
     return;
   }
@@ -322,21 +277,17 @@ function setSelected(index, options = {}) {
   renderStatus();
 
   if (options.scrollIntoView) {
-    scrollRowIntoView(nextIndex);
+    const row = dom.results.querySelector(`.result-row[data-index="${nextIndex}"]`);
+    if (row) {
+      row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
   }
 }
 
 function updateRowSelection(index, selected) {
-  const row = getRow(index);
+  const row = dom.results.querySelector(`.result-row[data-index="${index}"]`);
   if (row) {
     row.classList.toggle('selected', selected);
-  }
-}
-
-function scrollRowIntoView(index) {
-  const row = getRow(index);
-  if (row) {
-    row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 }
 
@@ -345,33 +296,29 @@ function renderDetail() {
 
   const paper = state.results[state.selected];
   if (!paper) {
-    dom.detail.appendChild(createTextElement('div', 'detail-empty', 'No paper selected'));
+    dom.detail.appendChild(el('div', 'detail-empty', 'No paper selected'));
     return;
   }
 
   const content = document.createElement('div');
   content.className = 'detail-content';
 
-  content.appendChild(createTextElement('h2', 'detail-title', paper.title || ''));
+  content.appendChild(el('h2', 'detail-title', paper.title || ''));
 
-  const meta = createTextElement(
-    'div',
-    'detail-meta',
-    [paper.venue || '', formatYear(paper.year)].filter(Boolean).join(' · '),
-  );
-  content.appendChild(meta);
+  const metaParts = [paper.venue || '', paper.year ?? ''].filter(Boolean);
+  content.appendChild(el('div', 'detail-meta', metaParts.join(' · ')));
 
-  content.appendChild(createLabeledTextBlock('detail-authors', 'Authors', paper.authors || ''));
+  content.appendChild(labeledBlock('detail-authors', 'Authors', paper.authors || ''));
 
   if (paper.doi) {
-    content.appendChild(createLabeledTextBlock('detail-link', 'DOI', paper.doi));
+    content.appendChild(labeledBlock('detail-link', 'DOI', paper.doi));
   }
 
-  const url = paperUrl(paper);
+  const url = paper.url || (paper.doi ? `https://doi.org/${paper.doi}` : '');
   if (url) {
     const linkBlock = document.createElement('div');
     linkBlock.className = 'detail-link';
-    linkBlock.appendChild(createLabel('URL'));
+    linkBlock.appendChild(el('strong', '', 'URL'));
     linkBlock.appendChild(document.createTextNode(' '));
 
     const link = document.createElement('a');
@@ -386,7 +333,7 @@ function renderDetail() {
 
   const abstractBlock = document.createElement('div');
   abstractBlock.className = 'detail-abstract';
-  abstractBlock.appendChild(createLabel('Abstract'));
+  abstractBlock.appendChild(el('strong', '', 'Abstract'));
 
   const abstractText = document.createElement('p');
   abstractText.textContent = paper.abstract || 'No abstract available.';
@@ -400,18 +347,18 @@ function renderStatus() {
   dom.status.replaceChildren();
 
   if (state.error) {
-    dom.status.appendChild(createTextElement('span', 'error', state.error));
+    dom.status.appendChild(el('span', 'error', state.error));
     return;
   }
 
   if (state.results.length > 0 || state.loading) {
     const selection = state.results.length ? ` · ${state.selected + 1}/${state.results.length}` : '';
     const count = `${state.results.length}${state.hasMore ? '+' : ''} papers`;
-    dom.status.appendChild(createTextElement('span', '', `${count} · sort ${state.sort}${selection}`));
+    dom.status.appendChild(el('span', '', `${count} · sort ${state.sort}${selection}`));
   }
 
   if (state.loading) {
-    dom.status.appendChild(createTextElement('span', 'spinner', 'Loading…'));
+    dom.status.appendChild(el('span', 'spinner', 'Loading…'));
   }
 }
 
@@ -421,7 +368,7 @@ function openSelected() {
     return;
   }
 
-  const url = paperUrl(paper);
+  const url = paper.url || (paper.doi ? `https://doi.org/${paper.doi}` : '');
   if (url) {
     window.open(url, '_blank');
   }
@@ -444,49 +391,17 @@ function getEventRowIndex(event) {
   return Number.isNaN(index) ? null : index;
 }
 
-function getRow(index) {
-  return dom.results.querySelector(`.result-row[data-index="${index}"]`);
+function el(tag, className, text) {
+  const e = document.createElement(tag);
+  if (className) e.className = className;
+  if (text) e.textContent = text;
+  return e;
 }
 
-function paperUrl(paper) {
-  if (paper.url) {
-    return paper.url;
-  }
-
-  if (paper.doi) {
-    return `https://doi.org/${paper.doi}`;
-  }
-
-  return '';
-}
-
-function formatYear(year) {
-  return year == null ? '' : String(year);
-}
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(value, max));
-}
-
-function createTextElement(tag, className, text) {
-  const element = document.createElement(tag);
-  if (className) {
-    element.className = className;
-  }
-  element.textContent = text;
-  return element;
-}
-
-function createLabel(text) {
-  const label = document.createElement('strong');
-  label.textContent = text;
-  return label;
-}
-
-function createLabeledTextBlock(className, label, text) {
+function labeledBlock(className, label, text) {
   const block = document.createElement('div');
   block.className = className;
-  block.appendChild(createLabel(label));
+  block.appendChild(el('strong', '', label));
   block.appendChild(document.createTextNode(` ${text}`));
   return block;
 }

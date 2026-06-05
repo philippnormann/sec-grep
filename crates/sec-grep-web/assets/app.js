@@ -186,13 +186,10 @@ async function runSearch({ reset }) {
 
   try {
     const response = await fetch(`/api/search?${params.toString()}`);
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
     const data = await response.json();
-    state.error = typeof data.error === 'string' ? data.error : '';
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${data.error}`);
+    }
     const papers = Array.isArray(data.papers) ? data.papers : [];
 
     if (reset) {

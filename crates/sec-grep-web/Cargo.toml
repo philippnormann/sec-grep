@@ -12,6 +12,7 @@ name = "sec-grep-web"
 path = "src/main.rs"
 
 [dependencies]
+sec-grep-core = { path = "../sec-grep-core" }
 tokio = { workspace = true }
 axum = { workspace = true }
 serde = { workspace = true }

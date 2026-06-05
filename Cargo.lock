@@ -2431,6 +2431,7 @@ dependencies = [
  "anyhow",
  "axum",
  "clap",
+ "sec-grep-core",
  "serde",
  "serde_json",
  "tokio",

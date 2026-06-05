@@ -8,10 +8,11 @@ use futures::stream::{self, StreamExt};
 
 use sec_grep_core::abstracts::Enricher;
 use sec_grep_core::config::{Config, Paths, Secrets};
-use sec_grep_core::db::{Database, Search, Sort};
+use sec_grep_core::db::{Database, Sort};
 use sec_grep_core::dblp::Dblp;
 use sec_grep_core::output::{self, Column, Format};
 use sec_grep_core::query;
+use sec_grep_core::{build_search, SearchOptions};
 
 /// Upper bound for dblp year filters; papers never exceed this.
 const MAX_YEAR: i32 = 2100;
@@ -157,15 +158,7 @@ impl From<SortArg> for Sort {
     }
 }
 
-pub(crate) struct SearchOptions<'a> {
-    pub(crate) venues: &'a [String],
-    pub(crate) ranks: &'a [String],
-    pub(crate) tags: &'a [String],
-    pub(crate) years: &'a [query::YearRange],
-    pub(crate) sort: Sort,
-    pub(crate) limit: Option<usize>,
-    pub(crate) offset: Option<usize>,
-}
+
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -301,33 +294,7 @@ fn cmd_search(cli: &Cli, paths: &Paths, config: &Config) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn build_search(
-    raw_query: &str,
-    config: &Config,
-    options: SearchOptions<'_>,
-) -> sec_grep_core::Result<Search> {
-    let parsed = query::parse(raw_query)?;
-    let mut venue_selectors = parsed.venue_selectors;
-    venue_selectors.extend_from_slice(options.venues);
-    let mut rank_selectors = parsed.rank_selectors;
-    rank_selectors.extend_from_slice(options.ranks);
-    let mut tag_selectors = parsed.tag_selectors;
-    tag_selectors.extend_from_slice(options.tags);
-    let mut year_ranges = parsed.year_ranges;
-    year_ranges.extend_from_slice(options.years);
-    let venue_filter =
-        config.resolve_venue_filter(&venue_selectors, &rank_selectors, &tag_selectors)?;
 
-    Ok(Search {
-        fts: parsed.fts,
-        venue_filter,
-        doi_terms: parsed.doi_terms,
-        year_ranges,
-        sort: options.sort,
-        limit: options.limit,
-        offset: options.offset,
-    })
-}
 
 fn parse_columns(fields: &[String]) -> Result<Option<Vec<Column>>> {
     if fields.is_empty() {

@@ -1,23 +1,33 @@
-use std::process::Command;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use anyhow::Context;
 use axum::{
-    extract::Query,
+    extract::{Query, State},
     http::header,
-    response::{Html, Json, IntoResponse},
+    response::{Html, IntoResponse},
     routing::get,
-    Router,
+    Json, Router,
 };
 use clap::Parser;
+use sec_grep_core::config::Config;
+use sec_grep_core::db::Database;
+use sec_grep_core::{build_search, Paper, SearchOptions};
+use sec_grep_core::db::Sort;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use tracing::{info, warn};
 
 const INDEX_HTML: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/index.html"));
 const STYLES_CSS: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/styles.css"));
 const APP_JS: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/app.js"));
+
+/// Application state shared across all requests
+#[derive(Clone)]
+struct AppState {
+    config: Arc<Config>,
+    db: Arc<Mutex<Database>>,
+}
 
 #[derive(Parser, Debug)]
 #[command(name = "sec-grep-web", version)]
@@ -33,28 +43,15 @@ struct Args {
 #[derive(Deserialize, Debug)]
 struct SearchParams {
     q: Option<String>,
-    #[serde(default = "default_sort")]
-    sort: String,
-    #[serde(default = "default_limit")]
-    limit: String,
-    #[serde(default = "default_offset")]
-    offset: String,
-}
-
-fn default_sort() -> String {
-    "year".into()
-}
-fn default_limit() -> String {
-    "320".into()
-}
-fn default_offset() -> String {
-    "0".into()
+    sort: Option<String>,
+    limit: Option<String>,
+    offset: Option<String>,
 }
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct SearchResponse {
-    papers: Vec<Value>,
+    papers: Vec<Paper>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
 }
@@ -71,13 +68,37 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let args = Args::parse();
-    let db = args.db.clone();
+
+    // Resolve paths
+    let paths = sec_grep_core::config::Paths::resolve()
+        .context("failed to resolve paths")?;
+    let db_path = args.db.unwrap_or_else(|| paths.db_path());
+    let config_path = paths.user_venues_path();
+
+    // Load config and open database once at startup
+    let config = Arc::new(
+        Config::load(Some(&config_path))
+            .context("loading venue config")?
+    );
+    let db = Arc::new(Mutex::new(
+        Database::open_existing(&db_path)
+            .with_context(|| format!("no database at {}", db_path.display()))?
+    ));
+
+    let state = AppState { config, db };
 
     let app = Router::new()
-        .route("/api/search", get(move |query| api_search(query, db.clone())))
-        .route("/static/styles.css", get(serve_css))
-        .route("/static/app.js", get(serve_js))
-        .fallback(fallback);
+        .route("/api/search", get(api_search))
+        .route(
+            "/static/styles.css",
+            get(|| async { ([(header::CONTENT_TYPE, "text/css")], STYLES_CSS) }),
+        )
+        .route(
+            "/static/app.js",
+            get(|| async { ([(header::CONTENT_TYPE, "application/javascript")], APP_JS) }),
+        )
+        .fallback(|| async { Html(INDEX_HTML) })
+        .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], args.port));
     info!("sec-grep web UI listening on http://{}", addr);
@@ -90,83 +111,69 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn api_search(Query(params): Query<SearchParams>, db: Option<PathBuf>) -> impl IntoResponse {
-    let mut cmd = Command::new("sec-grep");
-    cmd.arg("--format").arg("json");
-    cmd.arg("--sort").arg(&params.sort);
-    cmd.arg("--limit").arg(&params.limit);
-    cmd.arg("--offset").arg(&params.offset);
+async fn api_search(
+    State(state): State<AppState>,
+    Query(params): Query<SearchParams>,
+) -> impl IntoResponse {
+    // Parse parameters with defaults
+    let sort = match params.sort.as_deref().unwrap_or("year") {
+        "relevance" => Sort::Relevance,
+        "venue" => Sort::Venue,
+        _ => Sort::Year,
+    };
+    let limit = params.limit.as_deref().unwrap_or("320").parse::<usize>().ok();
+    let offset = params.offset.as_deref().unwrap_or("0").parse::<usize>().ok();
+    let query = params.q.as_deref().unwrap_or("");
 
-    if let Some(db) = &db {
-        cmd.arg("--db").arg(db);
-    }
-
-    if let Some(q) = &params.q {
-        if !q.is_empty() {
-            cmd.arg(q);
-        }
-    }
-
-    match tokio::task::spawn_blocking(move || cmd.output()).await {
-        Ok(Ok(output)) => {
-            if !output.status.success() {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                let msg = if stderr.trim().is_empty() {
-                    "sec-grep failed".to_string()
-                } else {
-                    stderr.trim().to_string()
-                };
-                warn!("sec-grep error: {}", msg);
-                let papers = parse_papers(&output.stdout).unwrap_or_default();
-                let res = SearchResponse {
-                    papers,
-                    error: Some(msg),
-                };
-                return (axum::http::StatusCode::OK, Json(res)).into_response();
-            }
-
-            let papers = parse_papers(&output.stdout).unwrap_or_default();
-            let res = SearchResponse {
-                papers,
-                error: None,
-            };
-            (axum::http::StatusCode::OK, Json(res)).into_response()
-        }
-        Ok(Err(e)) => {
-            warn!("Failed to start sec-grep: {}", e);
-            let res = SearchResponse {
-                papers: vec![],
-                error: Some("sec-grep not available".to_string()),
-            };
-            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(res)).into_response()
-        }
+    // Build search
+    let search = match build_search(
+        query,
+        &state.config,
+        SearchOptions {
+            venues: &[],
+            ranks: &[],
+            tags: &[],
+            years: &[],
+            sort,
+            limit,
+            offset,
+        },
+    ) {
+        Ok(search) => search,
         Err(e) => {
-            warn!("Blocking task failed: {}", e);
-            let res = SearchResponse {
+            warn!("search build error: {}", e);
+            return (axum::http::StatusCode::BAD_REQUEST, Json(SearchResponse {
+                papers: vec![],
+                error: Some(e.to_string()),
+            })).into_response();
+        }
+    };
+
+    // Execute search (acquire lock)
+    let db = match state.db.lock() {
+        Ok(db) => db,
+        Err(e) => {
+            warn!("db lock error: {}", e);
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(SearchResponse {
                 papers: vec![],
                 error: Some("internal server error".to_string()),
-            };
-            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(res)).into_response()
+            })).into_response();
         }
-    }
-}
+    };
 
-fn parse_papers(stdout: &[u8]) -> Option<Vec<Value>> {
-    let text = std::str::from_utf8(stdout).ok()?.trim();
-    if text.is_empty() {
-        return Some(vec![]);
-    }
-    serde_json::from_str(text).ok()
-}
+    let papers = match db.search(&search) {
+        Ok(papers) => papers,
+        Err(e) => {
+            warn!("db search error: {}", e);
+            return (axum::http::StatusCode::BAD_REQUEST, Json(SearchResponse {
+                papers: vec![],
+                error: Some(e.to_string()),
+            })).into_response();
+        }
+    };
 
-async fn serve_css() -> impl IntoResponse {
-    ([(header::CONTENT_TYPE, "text/css")], STYLES_CSS)
-}
-
-async fn serve_js() -> impl IntoResponse {
-    ([(header::CONTENT_TYPE, "application/javascript")], APP_JS)
-}
-
-async fn fallback() -> Html<&'static str> {
-    Html(INDEX_HTML)
+    (axum::http::StatusCode::OK, Json(SearchResponse {
+        papers,
+        error: None,
+    })).into_response()
 }

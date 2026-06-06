@@ -9,6 +9,11 @@ const dom = {
   detail: null,
   sortButtons: [],
   sentinel: null,
+  modal: null,
+  modalCode: null,
+  modalClose: null,
+  modalCopy: null,
+  modalDownload: null,
 };
 
 const state = {
@@ -19,6 +24,8 @@ const state = {
   loading: false,
   hasMore: false,
   error: '',
+  bibtex: '',
+  bibtexKey: '',
 };
 
 let debounceTimer = null;
@@ -34,6 +41,12 @@ function init() {
   dom.sentinel = document.createElement('div');
   dom.sentinel.className = 'sentinel';
   dom.results.appendChild(dom.sentinel);
+
+  dom.modal = document.getElementById('bibtex-modal');
+  dom.modalCode = document.getElementById('bibtex-code');
+  dom.modalClose = document.getElementById('modal-close');
+  dom.modalCopy = document.getElementById('modal-copy');
+  dom.modalDownload = document.getElementById('modal-download');
 
   bindEvents();
   setupInfiniteScroll();
@@ -55,6 +68,13 @@ function bindEvents() {
   dom.sortButtons.forEach((button) => {
     button.addEventListener('click', () => setSort(button.dataset.sort));
   });
+
+  dom.modalClose.addEventListener('click', closeModal);
+  dom.modal.addEventListener('click', (e) => {
+    if (e.target === dom.modal) closeModal();
+  });
+  dom.modalCopy.addEventListener('click', copyBibTeX);
+  dom.modalDownload.addEventListener('click', downloadBibTeX);
 }
 
 function setupInfiniteScroll() {
@@ -105,6 +125,12 @@ function onResultsDoubleClick(event) {
 }
 
 function onGlobalKeyDown(event) {
+  if (event.key === 'Escape' && !dom.modal.classList.contains('hidden')) {
+    event.preventDefault();
+    closeModal();
+    return;
+  }
+
   if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
     return;
   }
@@ -334,29 +360,22 @@ function renderDetail() {
 
   const bibtexBtn = document.createElement('button');
   bibtexBtn.className = 'download-btn';
-  bibtexBtn.textContent = 'Download BibTeX';
+  bibtexBtn.textContent = 'BibTeX';
   bibtexBtn.onclick = async () => {
     state.error = '';
     renderStatus();
     try {
-      const response = await fetch(`/api/bibtex?key=${encodeURIComponent(state.results[state.selected].dblp_key)}`);
+      const paper = state.results[state.selected];
+      const response = await fetch(`/api/bibtex?key=${encodeURIComponent(paper.dblp_key)}`);
       if (response.ok) {
         const bibtex = await response.text();
-        const blob = new Blob([bibtex], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `bibtex_${state.results[state.selected].dblp_key}.bib`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        openModal(bibtex, paper.dblp_key);
       } else {
         state.error = 'Failed to fetch BibTeX';
         renderStatus();
       }
     } catch (e) {
-      state.error = e.message || 'Error downloading BibTeX';
+      state.error = e.message || 'Error fetching BibTeX';
       renderStatus();
     }
   };
@@ -436,6 +455,45 @@ function labeledBlock(className, label, text) {
   block.appendChild(el('strong', '', label));
   block.appendChild(document.createTextNode(` ${text}`));
   return block;
+}
+
+function openModal(bibtex, key) {
+  state.bibtex = bibtex;
+  state.bibtexKey = key;
+  dom.modalCode.textContent = bibtex;
+  dom.modal.classList.remove('hidden');
+}
+
+function closeModal() {
+  dom.modal.classList.add('hidden');
+  state.bibtex = '';
+  state.bibtexKey = '';
+}
+
+async function copyBibTeX() {
+  try {
+    await navigator.clipboard.writeText(state.bibtex);
+    const original = dom.modalCopy.textContent;
+    dom.modalCopy.textContent = 'Copied!';
+    setTimeout(() => {
+      dom.modalCopy.textContent = original;
+    }, 1200);
+  } catch (e) {
+    state.error = `Copy failed: ${e}`;
+    renderStatus();
+  }
+}
+
+function downloadBibTeX() {
+  const blob = new Blob([state.bibtex], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `bibtex_${state.bibtexKey}.bib`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 init();

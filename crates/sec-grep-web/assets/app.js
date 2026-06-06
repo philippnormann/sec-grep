@@ -331,10 +331,9 @@ function renderDetail() {
   const citationBlock = document.createElement('div');
   citationBlock.className = 'detail-link';
   citationBlock.appendChild(el('strong', '', 'Citation'));
-  citationBlock.appendChild(document.createTextNode(' '));
 
   const bibtexBtn = document.createElement('button');
-  bibtexBtn.className = 'sort-btn';
+  bibtexBtn.className = 'download-btn';
   bibtexBtn.textContent = 'Download BibTeX';
   bibtexBtn.onclick = async () => {
     state.error = '';

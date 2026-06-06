@@ -328,6 +328,42 @@ function renderDetail() {
     content.appendChild(linkBlock);
   }
 
+  const citationBlock = document.createElement('div');
+  citationBlock.className = 'detail-link';
+  citationBlock.appendChild(el('strong', '', 'Citation'));
+  citationBlock.appendChild(document.createTextNode(' '));
+
+  const bibtexBtn = document.createElement('button');
+  bibtexBtn.className = 'sort-btn';
+  bibtexBtn.textContent = 'Download BibTeX';
+  bibtexBtn.onclick = async () => {
+    state.error = '';
+    renderStatus();
+    try {
+      const response = await fetch(`/api/bibtex?key=${encodeURIComponent(state.results[state.selected].dblp_key)}`);
+      if (response.ok) {
+        const bibtex = await response.text();
+        const blob = new Blob([bibtex], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bibtex_${state.results[state.selected].dblp_key}.bib`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } else {
+        state.error = 'Failed to fetch BibTeX';
+        renderStatus();
+      }
+    } catch (e) {
+      state.error = e.message || 'Error downloading BibTeX';
+      renderStatus();
+    }
+  };
+  citationBlock.appendChild(bibtexBtn);
+  content.appendChild(citationBlock);
+
   const abstractBlock = document.createElement('div');
   abstractBlock.className = 'detail-abstract';
   abstractBlock.appendChild(el('strong', '', 'Abstract'));

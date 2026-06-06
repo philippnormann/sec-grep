@@ -13,7 +13,7 @@ use axum::{
 use clap::Parser;
 use sec_grep_core::config::Config;
 use sec_grep_core::db::Database;
-use sec_grep_core::{build_search, Paper, SearchOptions};
+use sec_grep_core::{build_search, Paper, SearchOptions, output};
 use sec_grep_core::db::Sort;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
@@ -46,6 +46,11 @@ struct SearchParams {
     sort: Option<String>,
     limit: Option<String>,
     offset: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+struct BibtexParams {
+    key: String,
 }
 
 #[derive(Serialize, Debug)]
@@ -97,6 +102,7 @@ async fn main() -> anyhow::Result<()> {
             "/static/app.js",
             get(|| async { ([(header::CONTENT_TYPE, "application/javascript")], APP_JS) }),
         )
+        .route("/api/bibtex", get(api_bibtex))
         .fallback(|| async { Html(INDEX_HTML) })
         .with_state(state);
 
@@ -176,4 +182,41 @@ async fn api_search(
         papers,
         error: None,
     })).into_response()
+}
+
+async fn api_bibtex(
+    State(state): State<AppState>,
+    Query(params): Query<BibtexParams>,
+) -> impl IntoResponse {
+    let db = match state.db.lock() {
+        Ok(db) => db,
+        Err(e) => {
+            warn!("db lock error: {}", e);
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(SearchResponse {
+                papers: vec![],
+                error: Some("internal server error".to_string()),
+            })).into_response();
+        }
+    };
+
+    let paper = match db.get_by_key(&params.key) {
+        Ok(Some(p)) => p,
+        Ok(None) => {
+            return (axum::http::StatusCode::NOT_FOUND, Json(SearchResponse {
+                papers: vec![],
+                error: Some("paper not found".to_string()),
+            })).into_response();
+        }
+        Err(e) => {
+            warn!("db error: {}", e);
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(SearchResponse {
+                papers: vec![],
+                error: Some("internal server error".to_string()),
+            })).into_response();
+        }
+    };
+
+    let bibtex = output::render(&[paper], output::Format::Bibtex, None).unwrap();
+
+    (axum::http::StatusCode::OK, bibtex).into_response()
 }

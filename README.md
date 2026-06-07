@@ -16,7 +16,7 @@ authors, abstract, venue, year, rank, tag, and DOI.
 
 ## Install
 
-Requires Rust 1.86 or newer.
+Requires Rust 1.95 or newer.
 
 ```sh
 cargo install --git https://github.com/philippnormann/sec-grep sec-grep
@@ -46,6 +46,13 @@ podman-compose up -d
 # open http://localhost:5002
 ```
 
+Or use [`nix`](https://nixos.org/):
+
+```sh
+nix run "github:philippnormann/sec-grep" -- <arguments> # run once
+nix shell "github:philippnormann/sec-grep"              # add to PATH
+```
+
 ## Use
 
 ```sh
@@ -70,6 +77,9 @@ podman run --rm -v sec-grep_sec-grep-data:/data sec-grep:latest /usr/local/bin/s
 
 In the TUI, use `Tab` to cycle sort modes, arrow keys to move, and `Enter` to
 open the selected paper URL.
+
+Sort CLI results with `--sort relevance`, `--sort year`, `--sort venue`, or
+`--sort rank`.
 
 Search from the shell:
 

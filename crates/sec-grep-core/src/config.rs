@@ -107,6 +107,25 @@ impl VenueFilter {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct RankSortOrder {
+    groups: Vec<Vec<String>>,
+}
+
+impl RankSortOrder {
+    pub fn new(groups: Vec<Vec<String>>) -> Self {
+        Self { groups }
+    }
+
+    pub fn groups(&self) -> &[Vec<String>] {
+        &self.groups
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.groups.iter().all(Vec::is_empty)
+    }
+}
+
 #[derive(Debug, Deserialize)]
 struct ConfigOverride {
     defaults: Option<Defaults>,
@@ -233,9 +252,7 @@ impl Config {
         self.venues
             .iter()
             .filter(|v| {
-                v.rank
-                    .as_deref()
-                    .is_some_and(|r| ranks.iter().any(|q| q.eq_ignore_ascii_case(r)))
+                venue_rank(v).is_some_and(|r| ranks.iter().any(|q| q.eq_ignore_ascii_case(r)))
             })
             .map(|v| v.id.clone())
             .collect()
@@ -255,6 +272,51 @@ impl Config {
             })
             .map(|v| v.id.clone())
             .collect()
+    }
+
+    /// Venue ids grouped by rank, ordered for rank-based result sorting.
+    pub fn rank_sort_order(&self) -> RankSortOrder {
+        struct RankGroup {
+            label: String,
+            sort_key: u8,
+            first_seen: usize,
+        }
+
+        let mut groups: Vec<RankGroup> = Vec::new();
+        for venue in &self.venues {
+            let Some(rank) = venue_rank(venue).map(str::to_ascii_uppercase) else {
+                continue;
+            };
+            if groups.iter().any(|group| group.label == rank) {
+                continue;
+            }
+            groups.push(RankGroup {
+                sort_key: rank_sort_key(&rank),
+                label: rank,
+                first_seen: groups.len(),
+            });
+        }
+        groups.sort_by_key(|group| (group.sort_key, group.first_seen));
+        RankSortOrder::new(
+            groups
+                .into_iter()
+                .map(|group| self.venues_by_rank(std::slice::from_ref(&group.label)))
+                .collect(),
+        )
+    }
+}
+
+fn venue_rank(venue: &Venue) -> Option<&str> {
+    venue.rank.as_deref().filter(|rank| !rank.is_empty())
+}
+
+fn rank_sort_key(rank: &str) -> u8 {
+    match rank.to_ascii_uppercase().as_str() {
+        "A*" => 0,
+        "A" => 1,
+        "B" => 2,
+        "C" => 3,
+        _ => 4,
     }
 }
 
@@ -315,6 +377,18 @@ impl Paths {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn venue(id: &str, rank: &str, tags: &[&str]) -> Venue {
+        Venue {
+            id: id.to_string(),
+            name: String::new(),
+            dblp_stream: format!("conf/{}", id.to_ascii_lowercase()),
+            aliases: Vec::new(),
+            rank: (!rank.is_empty()).then(|| rank.to_string()),
+            tags: tags.iter().map(|tag| tag.to_string()).collect(),
+            abstract_source: None,
+        }
+    }
 
     #[test]
     fn default_catalog_parses_and_has_top4() {
@@ -385,6 +459,29 @@ venues:
         assert!(astar.contains(&"NDSS".to_string()));
         let crypto = cfg.venues_by_tag(&["crypto".into()]);
         assert!(crypto.contains(&"CCS".to_string()));
+    }
+
+    #[test]
+    fn rank_sort_order_sorts_by_rank() {
+        let cfg = Config {
+            defaults: Defaults::default(),
+            venues: vec![
+                venue("BVENUE", "B", &[]),
+                venue("ASTAR1", "a*", &[]),
+                venue("AVENUE", "A", &[]),
+                venue("ASTAR2", "A*", &[]),
+                venue("UNRANKED", "", &[]),
+            ],
+        };
+        let order = cfg.rank_sort_order();
+        let groups = order.groups();
+        assert_eq!(
+            groups.first(),
+            Some(&vec!["ASTAR1".to_string(), "ASTAR2".to_string()])
+        );
+        assert_eq!(groups.get(1), Some(&vec!["AVENUE".to_string()]));
+        assert_eq!(groups.get(2), Some(&vec!["BVENUE".to_string()]));
+        assert_eq!(groups.len(), 3);
     }
 
     #[test]

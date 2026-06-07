@@ -2,11 +2,13 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use anyhow::Context;
 use axum::{
     extract::{Query, State},
     http::header,
+    middleware::{self, Next},
     response::{Html, IntoResponse},
     routing::get,
     Json, Router,
@@ -22,6 +24,20 @@ use tracing::{info, warn};
 const INDEX_HTML: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/index.html"));
 const STYLES_CSS: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/styles.css"));
 const APP_JS: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/app.js"));
+
+/// Access log middleware - logs method, path, status, latency
+async fn access_log(
+    req: axum::http::Request<axum::body::Body>,
+    next: Next,
+) -> impl IntoResponse {
+    let start = Instant::now();
+    let method = req.method().clone();
+    let uri = req.uri().to_string();
+    let response = next.run(req).await;
+    let latency = start.elapsed().as_millis();
+    info!("{} {} {} {}ms", method, uri, response.status().as_u16(), latency);
+    response
+}
 
 /// Application state shared across all requests
 #[derive(Clone)]
@@ -114,6 +130,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/api/bibtex", get(api_bibtex))
         .fallback(|| async { Html(INDEX_HTML) })
+        .layer(middleware::from_fn(access_log))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], args.port));

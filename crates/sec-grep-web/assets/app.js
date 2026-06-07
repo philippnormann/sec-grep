@@ -14,6 +14,7 @@ const dom = {
   modalClose: null,
   modalCopy: null,
   modalDownload: null,
+  themeToggle: null,
 };
 
 const state = {
@@ -47,7 +48,9 @@ function init() {
   dom.modalClose = document.getElementById('modal-close');
   dom.modalCopy = document.getElementById('modal-copy');
   dom.modalDownload = document.getElementById('modal-download');
+  dom.themeToggle = document.getElementById('theme-toggle');
 
+  initTheme();
   bindEvents();
   setupInfiniteScroll();
   renderSortButtons();
@@ -59,6 +62,7 @@ function init() {
 }
 
 function bindEvents() {
+  dom.themeToggle.addEventListener('click', toggleTheme);
   dom.searchInput.addEventListener('input', onSearchInput);
   dom.searchInput.addEventListener('keydown', onSearchKeyDown);
   dom.results.addEventListener('click', onResultsClick);
@@ -495,5 +499,30 @@ function downloadBibTeX() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+const THEME_KEY = 'theme';
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  if (saved === 'light' || saved === 'dark') {
+    document.documentElement.dataset.theme = saved;
+    return;
+  }
+  const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+  document.documentElement.dataset.theme = prefersLight ? 'light' : 'dark';
+}
+
+function toggleTheme() {
+  const current = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem(THEME_KEY, next);
+}
+
+window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => {
+  if (!localStorage.getItem(THEME_KEY)) {
+    document.documentElement.dataset.theme = e.matches ? 'light' : 'dark';
+  }
+});
 
 init();

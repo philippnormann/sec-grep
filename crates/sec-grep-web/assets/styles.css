@@ -323,14 +323,19 @@ body {
   font-weight: 600;
 }
 .col-venue {
-  flex: 0 0 8.5rem;
+  flex: 0 0 8rem;
   color: var(--color-accent-tertiary);
   font-weight: 700;
 }
 .col-year {
-  flex: 0 0 3rem;
+  flex: 0 0 2.5rem;
   color: var(--color-muted);
   text-align: right;
+}
+.col-rank {
+  flex: 0 0 3.5rem;
+  color: var(--color-dim);
+  text-align: left;
 }
 .col-title {
   flex: 1 1 auto;

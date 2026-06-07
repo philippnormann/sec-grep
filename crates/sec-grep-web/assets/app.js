@@ -1,6 +1,6 @@
 const LOAD_BATCH = 120;
 const SEARCH_DEBOUNCE_MS = 300;
-const SORTS = ['year', 'relevance', 'venue'];
+const SORTS = ['year', 'rank', 'relevance', 'venue'];
 
 const dom = {
   searchInput: null,
@@ -21,6 +21,7 @@ const state = {
   query: '',
   sort: 'year',
   results: [],
+  ranks: {},
   selected: 0,
   loading: false,
   hasMore: false,
@@ -221,6 +222,9 @@ async function runSearch({ reset }) {
       throw new Error(`HTTP ${response.status}: ${data.error}`);
     }
     const papers = Array.isArray(data.papers) ? data.papers : [];
+    if (data.ranks && typeof data.ranks === 'object') {
+      state.ranks = data.ranks;
+    }
 
     if (reset) {
       state.results = papers;
@@ -271,6 +275,8 @@ function appendResults(papers, startIndex) {
     }
     row.appendChild(el('span', 'col-venue', paper.venue || ''));
     row.appendChild(el('span', 'col-year', paper.year ?? ''));
+    const rank = state.ranks[paper.venue];
+    row.appendChild(el('span', 'col-rank', rank ? `[${rank}]` : ''));
     row.appendChild(el('span', 'col-title', paper.title || ''));
     row.appendChild(el('span', 'col-authors', paper.authors || ''));
     fragment.appendChild(row);
@@ -333,6 +339,10 @@ function renderDetail() {
   content.appendChild(el('h2', 'detail-title', paper.title || ''));
 
   const metaParts = [paper.venue || '', paper.year ?? ''].filter(Boolean);
+  const rank = state.ranks[paper.venue];
+  if (rank) {
+    metaParts.push(`rank ${rank}`);
+  }
   content.appendChild(el('div', 'detail-meta', metaParts.join(' · ')));
 
   content.appendChild(labeledBlock('detail-authors', 'Authors', paper.authors || ''));

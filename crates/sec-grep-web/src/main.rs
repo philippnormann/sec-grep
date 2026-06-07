@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -27,6 +28,7 @@ const APP_JS: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/a
 struct AppState {
     config: Arc<Config>,
     db: Arc<Mutex<Database>>,
+    ranks: Arc<HashMap<String, String>>,
 }
 
 #[derive(Parser, Debug)]
@@ -59,6 +61,8 @@ struct SearchResponse {
     papers: Vec<Paper>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ranks: Option<HashMap<String, String>>,
 }
 
 #[tokio::main]
@@ -90,7 +94,13 @@ async fn main() -> anyhow::Result<()> {
             .with_context(|| format!("no database at {}", db_path.display()))?
     ));
 
-    let state = AppState { config, db };
+    let mut ranks = HashMap::new();
+    for venue in &config.venues {
+        if let Some(rank) = venue.rank.as_deref().filter(|r| !r.is_empty()) {
+            ranks.insert(venue.id.clone(), rank.to_string());
+        }
+    }
+    let state = AppState { config, db, ranks: Arc::new(ranks) };
 
     let app = Router::new()
         .route("/api/search", get(api_search))
@@ -125,6 +135,7 @@ async fn api_search(
     let sort = match params.sort.as_deref().unwrap_or("year") {
         "relevance" => Sort::Relevance,
         "venue" => Sort::Venue,
+        "rank" => Sort::Rank(state.config.rank_sort_order()),
         _ => Sort::Year,
     };
     let limit = params.limit.as_deref().unwrap_or("320").parse::<usize>().ok();
@@ -151,6 +162,7 @@ async fn api_search(
             return (axum::http::StatusCode::BAD_REQUEST, Json(SearchResponse {
                 papers: vec![],
                 error: Some(e.to_string()),
+                ranks: None,
             })).into_response();
         }
     };
@@ -163,6 +175,7 @@ async fn api_search(
             return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(SearchResponse {
                 papers: vec![],
                 error: Some("internal server error".to_string()),
+                ranks: None,
             })).into_response();
         }
     };
@@ -174,6 +187,7 @@ async fn api_search(
             return (axum::http::StatusCode::BAD_REQUEST, Json(SearchResponse {
                 papers: vec![],
                 error: Some(e.to_string()),
+                ranks: None,
             })).into_response();
         }
     };
@@ -181,6 +195,7 @@ async fn api_search(
     (axum::http::StatusCode::OK, Json(SearchResponse {
         papers,
         error: None,
+        ranks: Some((*state.ranks).clone()),
     })).into_response()
 }
 
@@ -195,6 +210,7 @@ async fn api_bibtex(
             return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(SearchResponse {
                 papers: vec![],
                 error: Some("internal server error".to_string()),
+                ranks: None,
             })).into_response();
         }
     };
@@ -205,6 +221,7 @@ async fn api_bibtex(
             return (axum::http::StatusCode::NOT_FOUND, Json(SearchResponse {
                 papers: vec![],
                 error: Some("paper not found".to_string()),
+                ranks: None,
             })).into_response();
         }
         Err(e) => {
@@ -212,6 +229,7 @@ async fn api_bibtex(
             return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(SearchResponse {
                 papers: vec![],
                 error: Some("internal server error".to_string()),
+                ranks: None,
             })).into_response();
         }
     };

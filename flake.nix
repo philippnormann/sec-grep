@@ -53,6 +53,19 @@
               doCheck = false;
             };
 
+          secGrepWeb =
+            with pkgs;
+            rustPlatform.buildRustPackage {
+              inherit src;
+              name = "sec-grep-web";
+              version = manifest.version;
+              cargoLock = {
+                lockFile = ./Cargo.lock;
+              };
+              doCheck = false;
+              cargoBuildFlags = [ "-p" "sec-grep-web" ];
+            };
+
         in
         {
           # auto formatting
@@ -64,7 +77,7 @@
           };
 
           packages = {
-            inherit secGrep;
+            inherit secGrep secGrepWeb;
             default = secGrep;
           };
 

@@ -81,6 +81,7 @@ pub fn extract_abstract_html(html: &str, source: Option<AbstractSource>) -> Opti
         }
         Some(AbstractSource::Ieee) => first_selector_text(&doc, &["div.abstract-text"]),
         Some(AbstractSource::Ndss) => extract_ndss_abstract(&doc),
+        Some(AbstractSource::Neurips) => extract_neurips_abstract(&doc),
         Some(AbstractSource::Springer) => first_selector_text(
             &doc,
             &[
@@ -111,6 +112,17 @@ fn extract_ndss_abstract(doc: &Html) -> Option<String> {
         }
     }
     non_empty_text(text)
+}
+
+fn extract_neurips_abstract(doc: &Html) -> Option<String> {
+    let selector = Selector::parse("section.paper-section").ok()?;
+    for section in doc.select(&selector) {
+        let text = element_text(section)?;
+        if let Some(abstract_text) = text.strip_prefix("Abstract") {
+            return non_empty_text(abstract_text);
+        }
+    }
+    None
 }
 
 fn first_selector_text(doc: &Html, selectors: &[&str]) -> Option<String> {
@@ -526,6 +538,20 @@ mod tests {
         assert_eq!(
             extract_abstract_html(html, Some(AbstractSource::Usenix)).as_deref(),
             Some("This is the USENIX abstract.")
+        );
+    }
+
+    #[test]
+    fn html_neurips_source_specific_selector() {
+        let html = r#"<html><body>
+            <section class="paper-section">
+                <h2 class="section-label">Abstract</h2>
+                <p class="paper-abstract"><p>NeurIPS abstract text.</p></p>
+            </section>
+        </body></html>"#;
+        assert_eq!(
+            extract_abstract_html(html, Some(AbstractSource::Neurips)).as_deref(),
+            Some("NeurIPS abstract text.")
         );
     }
 

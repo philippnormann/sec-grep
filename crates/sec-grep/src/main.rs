@@ -17,11 +17,7 @@ use sec_grep_core::query;
 const MAX_YEAR: i32 = 2100;
 
 #[derive(Parser)]
-#[command(
-    name = "sec-grep",
-    about = "Search security conference papers beyond the top-4 venues",
-    version
-)]
+#[command(name = "sec-grep", about = "Search security and ML papers", version)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,

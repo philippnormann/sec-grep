@@ -33,6 +33,7 @@ pub enum AbstractSource {
     Acm,
     Ieee,
     Ndss,
+    Neurips,
     Springer,
     Usenix,
 }
@@ -401,6 +402,35 @@ mod tests {
     }
 
     #[test]
+    fn default_catalog_has_security_and_ml_venue_groups() {
+        let cfg = Config::defaults().unwrap();
+        assert_eq!(
+            cfg.venues_by_tag(&["security".into()]),
+            vec![
+                "NDSS".to_string(),
+                "USENIX-SEC".to_string(),
+                "SP".to_string(),
+                "CCS".to_string(),
+                "RAID".to_string(),
+                "ACSAC".to_string(),
+                "ESORICS".to_string(),
+                "AsiaCCS".to_string(),
+                "EuroSP".to_string(),
+            ]
+        );
+        assert_eq!(
+            cfg.venues_by_tag(&["ml".into()]),
+            vec![
+                "AISec".to_string(),
+                "SaTML".to_string(),
+                "NeurIPS".to_string(),
+                "ICML".to_string(),
+                "ICLR".to_string(),
+            ]
+        );
+    }
+
+    #[test]
     fn lookup_by_alias_is_case_insensitive() {
         let cfg = Config::defaults().unwrap();
         assert_eq!(cfg.venue("oakland").unwrap().id, "SP");
@@ -510,7 +540,7 @@ venues:
     fn combined_venue_filter_ors_within_filter_kind() {
         let cfg = Config::defaults().unwrap();
         let filter = cfg
-            .resolve_venue_filter(&[], &["A*".into()], &["crypto".into(), "web".into()])
+            .resolve_venue_filter(&[], &["A*".into()], &["privacy".into(), "web".into()])
             .unwrap();
         let VenueFilter::Only(ids) = filter else {
             panic!("expected active venue filter");

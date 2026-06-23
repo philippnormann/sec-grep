@@ -1,6 +1,6 @@
 # sec-grep
 
-Fast, local search across the security and privacy research literature.
+Fast, local search across security and ML research literature.
 
 ![sec-grep TUI](assets/tui.png)
 
@@ -10,7 +10,7 @@ authors, abstract, venue, year, rank, tag, and DOI.
 
 ## Why
 
-- Search beyond the usual top-4 security venues with a configurable catalog.
+- Search security, AI-security, and ML venues with a configurable catalog.
 - Keep the corpus local and query it quickly with SQLite/FTS5.
 - Search in the CLI or TUI, and export CSV, JSON, or BibTeX for scripts.
 
@@ -70,9 +70,15 @@ sec-grep 'malware detection' --year 2022- --rank A --rank 'A*' --sort year
 sec-grep 'kernel fuzz*' --venue USENIX-SEC --format bibtex > papers.bib
 
 # Script-friendly CSV with selected columns
-sec-grep 'abstract:"large language model"' --tag systems \
+sec-grep 'large language model' --tag ml \
   --format csv \
   --fields venue,year,title,authors,url
+
+# ML papers across NeurIPS, ICML, ICLR, AISec, and SaTML
+sec-grep 'mechanistic interpretability' --tag ml --year 2023-
+
+# AI-security crossover papers
+sec-grep 'prompt injection OR jailbreak' --tag ai-security
 
 # Limit output for quick triage
 sec-grep 'ransomware OR botnet' --year 2020- --limit 20
@@ -107,9 +113,13 @@ within one field and ANDed across fields.
 
 ```sh
 sec-grep 'malware OR botnet' --rank A --rank 'A*'
-sec-grep 'malware OR botnet year:2018 year:2029'
+sec-grep 'malware OR botnet' --year 2018 --year 2029
 sec-grep 'malware OR botnet' --rank A --tag systems
 ```
+
+The bundled catalog uses `--tag security` for traditional security venues,
+`--tag ml` for ML venues, and `--tag ai-security` for AI/ML-security crossover
+venues such as AISec and SaTML.
 
 ## Venues
 
@@ -152,7 +162,7 @@ sec-grep 'malware' --venue DIMVA
 
 `dblp_stream` is the DBLP stream slug from URLs like
 `https://dblp.org/streams/conf/dimva`. `abstract_source` is optional; supported
-values are `acm`, `ieee`, `ndss`, `springer`, and `usenix`.
+values are `acm`, `ieee`, `ndss`, `neurips`, `springer`, and `usenix`.
 
 ## Abstracts
 

@@ -14,31 +14,31 @@ venues:
     dblp_stream: conf/ndss
     aliases: [ndss]
     rank: A*
-    tags: [systems, network, web]
+    tags: [security, network, systems, web]
     abstract_source: ndss
 
   - id: USENIX-SEC
     name: USENIX Security Symposium
     dblp_stream: conf/uss
-    aliases: [usenix, uss, sec, usec]
+    aliases: [usenix, usenix-security, uss]
     rank: A*
-    tags: [systems, crypto, network]
+    tags: [security, systems, privacy, network]
     abstract_source: usenix
 
   - id: SP
     name: IEEE Symposium on Security and Privacy
     dblp_stream: conf/sp
-    aliases: [sp, oakland, ieeesp, "s&p"]
+    aliases: [sp, oakland, ieee-sp, "s&p"]
     rank: A*
-    tags: [systems, crypto, network]
+    tags: [security, privacy, systems, crypto]
     abstract_source: ieee
 
   - id: CCS
     name: ACM Conference on Computer and Communications Security
     dblp_stream: conf/ccs
-    aliases: [ccs]
+    aliases: [ccs, acm-ccs]
     rank: A*
-    tags: [systems, crypto, web]
+    tags: [security, privacy, systems, crypto]
     abstract_source: acm
 
   - id: RAID
@@ -46,7 +46,7 @@ venues:
     dblp_stream: conf/raid
     aliases: [raid]
     rank: A
-    tags: [systems, network, malware]
+    tags: [security, attacks, intrusion-detection, malware]
     abstract_source: springer
 
   - id: ACSAC
@@ -54,7 +54,7 @@ venues:
     dblp_stream: conf/acsac
     aliases: [acsac]
     rank: A
-    tags: [systems, applied]
+    tags: [security, applied, systems, privacy]
     abstract_source: acm
 
   - id: ESORICS
@@ -62,21 +62,59 @@ venues:
     dblp_stream: conf/esorics
     aliases: [esorics]
     rank: A
-    tags: [crypto, systems]
+    tags: [security, privacy, systems, crypto]
     abstract_source: springer
 
   - id: AsiaCCS
     name: ACM Asia Conference on Computer and Communications Security
     dblp_stream: conf/asiaccs
-    aliases: [asiaccs]
+    aliases: [asiaccs, asia-ccs]
     rank: A
-    tags: [systems, crypto]
+    tags: [security, privacy, systems, crypto]
     abstract_source: acm
 
   - id: EuroSP
     name: IEEE European Symposium on Security and Privacy
     dblp_stream: conf/eurosp
-    aliases: [eurosp, "euros&p"]
+    aliases: [eurosp, euro-s&p, euros&p]
     rank: A
-    tags: [systems, crypto]
+    tags: [security, privacy, systems, crypto]
     abstract_source: ieee
+
+  - id: AISec
+    name: ACM Workshop on Artificial Intelligence and Security
+    dblp_stream: conf/aisec-ws
+    aliases: [aisec, ai-sec]
+    rank: workshop
+    tags: [ai-security, ml, privacy, robustness]
+    abstract_source: acm
+
+  - id: SaTML
+    name: IEEE Conference on Secure and Trustworthy Machine Learning
+    dblp_stream: conf/satml
+    aliases: [satml]
+    rank: A
+    tags: [ai-security, ml, robustness, privacy, interpretability]
+    abstract_source: ieee
+
+  - id: NeurIPS
+    name: Conference on Neural Information Processing Systems
+    dblp_stream: conf/nips
+    aliases: [neurips, nips]
+    rank: A*
+    tags: [ml, evaluation, datasets, benchmarks]
+    abstract_source: neurips
+
+  - id: ICML
+    name: International Conference on Machine Learning
+    dblp_stream: conf/icml
+    aliases: [icml]
+    rank: A*
+    tags: [ml, evaluation, robustness, interpretability]
+
+  - id: ICLR
+    name: International Conference on Learning Representations
+    dblp_stream: conf/iclr
+    aliases: [iclr]
+    rank: A*
+    tags: [representation-learning, ml, evaluation, interpretability]

@@ -1213,17 +1213,60 @@ fn source_from_static_url(url: &Url) -> Option<AbstractSource> {
     match host.as_str() {
         "aclanthology.org" | "www.aclanthology.org" => Some(AbstractSource::Acl),
         "dl.acm.org" => Some(AbstractSource::Acm),
-        "ieeexplore.ieee.org" => Some(AbstractSource::Ieee),
+        "doi.ieeecomputersociety.org" | "ieeexplore.ieee.org" => Some(AbstractSource::Ieee),
         "ijcai.org" | "www.ijcai.org" => Some(AbstractSource::Ijcai),
         "openaccess.thecvf.com" => Some(AbstractSource::Cvf),
         "openreview.net" | "www.openreview.net" => Some(AbstractSource::Openreview),
         "proceedings.mlr.press" => Some(AbstractSource::Pmlr),
-        "neurips.cc" | "nips.cc" => Some(AbstractSource::Neurips),
-        "link.springer.com" => Some(AbstractSource::Springer),
+        "neurips.cc"
+        | "datasets-benchmarks-proceedings.neurips.cc"
+        | "www.neurips.cc"
+        | "proceedings.neurips.cc"
+        | "nips.cc"
+        | "www.nips.cc"
+        | "papers.nips.cc" => Some(AbstractSource::Neurips),
+        "idp.springer.com" | "link.springer.com" => Some(AbstractSource::Springer),
         "ndss-symposium.org" | "www.ndss-symposium.org" => Some(AbstractSource::Ndss),
         "usenix.org" | "www.usenix.org" => Some(AbstractSource::Usenix),
-        _ if host.ends_with(".neurips.cc") || host.ends_with(".nips.cc") => {
-            Some(AbstractSource::Neurips)
+        _ => None,
+    }
+}
+
+fn is_doi_host(url: &Url) -> bool {
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    matches!(
+        host.trim_end_matches('.').to_ascii_lowercase().as_str(),
+        "doi.org" | "dx.doi.org"
+    )
+}
+
+fn is_allowed_static_host(url: &Url) -> bool {
+    if is_doi_host(url) || source_from_static_url(url).is_some() {
+        return true;
+    }
+    // These publishers use generic metadata rather than a source-specific parser.
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    matches!(
+        host.trim_end_matches('.').to_ascii_lowercase().as_str(),
+        "aaai.org" | "www.aaai.org" | "ojs.aaai.org" | "iclr.cc" | "www.iclr.cc"
+    )
+}
+
+fn static_fetch_url(raw: &str) -> Option<Url> {
+    let mut url = parse_static_url(raw)?;
+    if !is_allowed_static_host(&url) {
+        return None;
+    }
+    match (url.scheme(), url.port_or_known_default()) {
+        ("https", Some(443)) => Some(url),
+        ("http", Some(80)) => {
+            url.set_scheme("https").ok()?;
+            url.set_port(None).ok()?;
+            Some(url)
         }
         _ => None,
     }
@@ -1235,8 +1278,7 @@ fn source_from_paper_url(raw: &str) -> Option<AbstractSource> {
 }
 
 fn source_from_doi_url(url: &Url) -> Option<AbstractSource> {
-    let host = url.host_str()?.trim_end_matches('.').to_ascii_lowercase();
-    if host != "doi.org" && host != "dx.doi.org" {
+    if !is_doi_host(url) {
         return None;
     }
     let doi = url.path().trim_start_matches('/').to_ascii_lowercase();
@@ -1304,7 +1346,7 @@ fn header_seconds(headers: &header::HeaderMap, name: impl header::AsHeaderName) 
 }
 
 async fn allowed_static_url(raw: &str) -> std::result::Result<Url, &'static str> {
-    let url = parse_static_url(raw).ok_or("URL rejected by static scraper")?;
+    let url = static_fetch_url(raw).ok_or("URL rejected by static scraper")?;
     let host = url.host_str().ok_or("URL rejected by static scraper")?;
     let port = url
         .port_or_known_default()
@@ -1391,6 +1433,9 @@ fn is_public_ip(ip: IpAddr) -> bool {
                 || ip.is_documentation())
         }
         IpAddr::V6(ip) => {
+            if let Some(ipv4) = ip.to_ipv4_mapped() {
+                return is_public_ip(IpAddr::V4(ipv4));
+            }
             let segments = ip.segments();
             let first = segments[0];
             let is_unique_local = (first & 0xfe00) == 0xfc00;
@@ -2172,6 +2217,56 @@ mod tests {
     #[test]
     fn html_no_abstract() {
         assert!(extract_abstract_html("<html></html>", None).is_none());
+    }
+
+    #[test]
+    fn ipv4_mapped_ipv6_uses_ipv4_address_policy() {
+        assert!(!is_public_ip("::ffff:127.0.0.1".parse().unwrap()));
+        assert!(!is_public_ip("::ffff:169.254.169.254".parse().unwrap()));
+        assert!(is_public_ip("::ffff:8.8.8.8".parse().unwrap()));
+    }
+
+    #[test]
+    fn static_scrape_normalizes_only_allowed_publishers() {
+        for raw in [
+            "https://doi.org/10.9999/example",
+            "https://dl.acm.org/doi/10.1145/example",
+            "https://datasets-benchmarks-proceedings.neurips.cc/paper/1",
+            "https://aaai.org/paper/1",
+            "https://www.aaai.org/paper/1",
+            "https://ojs.aaai.org/paper/1",
+            "https://iclr.cc/paper/1",
+            "https://www.iclr.cc/paper/1",
+            "https://doi.ieeecomputersociety.org/10.1109/example",
+            "https://idp.springer.com/authorize",
+        ] {
+            assert_eq!(static_fetch_url(raw).unwrap().as_str(), raw);
+        }
+
+        assert_eq!(
+            static_fetch_url("http://papers.nips.cc/paper/1")
+                .unwrap()
+                .as_str(),
+            "https://papers.nips.cc/paper/1"
+        );
+        assert_eq!(
+            static_fetch_url("http://proceedings.mlr.press:80/paper/1")
+                .unwrap()
+                .as_str(),
+            "https://proceedings.mlr.press/paper/1"
+        );
+
+        for raw in [
+            "http://dl.acm.org:8080/doi/10.1145/example",
+            "https://dl.acm.org:8443/doi/10.1145/example",
+            "https://example.com/paper",
+            "https://dl.acm.org.attacker.example/paper",
+            "https://attacker.neurips.cc/paper",
+            "https://aaai.org.attacker.example/paper",
+            "https://attacker.iclr.cc/paper",
+        ] {
+            assert!(static_fetch_url(raw).is_none(), "accepted {raw}");
+        }
     }
 
     #[test]

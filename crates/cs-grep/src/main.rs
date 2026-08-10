@@ -2,8 +2,9 @@ mod tui;
 
 use std::{
     collections::BTreeMap,
-    io::Write,
+    io::{IsTerminal, Write},
     path::{Path, PathBuf},
+    process::ExitCode,
 };
 
 use anyhow::{Context, Result};
@@ -130,7 +131,18 @@ pub(crate) enum SortMode {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> ExitCode {
+    match run().await {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            let error = format!("{error:#}");
+            eprintln!("error: {}", output::terminal_safe(&error));
+            ExitCode::FAILURE
+        }
+    }
+}
+
+async fn run() -> Result<()> {
     let cli = Cli::parse();
     reject_search_args_for_subcommands(&cli)?;
     let paths = Paths::resolve()?;
@@ -167,7 +179,8 @@ fn log_header(title: &str) {
 }
 
 fn log_field(label: &str, value: impl std::fmt::Display) {
-    eprintln!("  {label:<10} {value}");
+    let value = value.to_string();
+    eprintln!("  {label:<10} {}", output::terminal_safe(&value));
 }
 
 fn log_blank() {
@@ -246,7 +259,12 @@ fn cmd_search(cli: &Cli, paths: &Paths, config: &Config) -> Result<()> {
 
     let columns = (!cli.fields.is_empty()).then_some(cli.fields.as_slice());
     let format = cli.format.unwrap_or(Format::Table);
-    let out = output::render(&papers, format, columns).map_err(|e| anyhow::anyhow!(e))?;
+    let out = if std::io::stdout().is_terminal() {
+        output::render_terminal(&papers, format, columns)
+    } else {
+        output::render(&papers, format, columns)
+    }
+    .map_err(|e| anyhow::anyhow!(e))?;
     if !out.is_empty() {
         print!("{out}");
         if !out.ends_with('\n') {
@@ -306,7 +324,8 @@ async fn cmd_update(args: &UpdateArgs, cli: &Cli, paths: &Paths, config: &Config
     let mut failed = Vec::new();
     for id in &venue_ids {
         let venue = config.venue(id).expect("resolved venue");
-        eprint!("  {id:<12} ");
+        let safe_id = output::terminal_safe(id);
+        eprint!("  {safe_id:<12} ");
         let _ = std::io::stderr().flush();
         match dblp.fetch_venue(venue, min_year, MAX_YEAR).await {
             Ok(papers) => {
@@ -315,7 +334,8 @@ async fn cmd_update(args: &UpdateArgs, cli: &Cli, paths: &Paths, config: &Config
                 eprintln!("fetched {:>5} papers, {:>5} upserted", papers.len(), n);
             }
             Err(e) => {
-                eprintln!("failed   {e}");
+                let error = e.to_string();
+                eprintln!("failed   {}", output::terminal_safe(&error));
                 failed.push(id.clone());
             }
         }
@@ -422,7 +442,14 @@ async fn enrich_abstracts(
                 Ok(EnrichResult::Missing(reason)) => {
                     *misses.entry(reason).or_default() += 1;
                 }
-                Err(e) => eprintln!("warning: abstract fetch failed for {dblp_key}: {e}"),
+                Err(e) => {
+                    let error = e.to_string();
+                    eprintln!(
+                        "warning: abstract fetch failed for {}: {}",
+                        output::terminal_safe(&dblp_key),
+                        output::terminal_safe(&error)
+                    );
+                }
             }
             if processed.is_multiple_of(ENRICH_PROGRESS_INTERVAL) {
                 log_field(
@@ -447,7 +474,7 @@ async fn enrich_abstracts(
     if !misses.is_empty() {
         log_field("missed", processed - filled);
         for (reason, count) in misses {
-            eprintln!("  {count:>10} {reason}");
+            eprintln!("  {count:>10} {}", output::terminal_safe(&reason));
         }
     }
     Ok(())

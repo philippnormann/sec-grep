@@ -20,6 +20,7 @@ use scraper::{ElementRef, Html, Selector};
 use serde_json::Value;
 
 use crate::config::Secrets;
+use crate::output::terminal_safe;
 use crate::{Paper, Result};
 
 const MAX_JSON_BODY_BYTES: usize = 4 * 1024 * 1024;
@@ -716,10 +717,15 @@ impl Enricher {
                 Ok(abstracts) => {
                     self.openreview_cache.insert(key, abstracts);
                 }
-                Err(e) => eprintln!(
-                    "warning: OpenReview batch lookup failed for {} {}: {e}",
-                    key.0, key.1
-                ),
+                Err(e) => {
+                    let error = e.to_string();
+                    eprintln!(
+                        "warning: OpenReview batch lookup failed for {} {}: {}",
+                        terminal_safe(&key.0),
+                        key.1,
+                        terminal_safe(&error)
+                    );
+                }
             }
         }
     }
@@ -748,7 +754,11 @@ impl Enricher {
             {
                 Ok(hits) => hits,
                 Err(e) => {
-                    eprintln!("warning: Semantic Scholar DOI batch lookup failed: {e}");
+                    let error = e.to_string();
+                    eprintln!(
+                        "warning: Semantic Scholar DOI batch lookup failed: {}",
+                        terminal_safe(&error)
+                    );
                     retry_individually.extend(chunk.iter().cloned());
                     HashMap::new()
                 }
@@ -762,7 +772,11 @@ impl Enricher {
                 match self.openalex_doi_abstracts(missing, &expected_titles).await {
                     Ok(openalex_hits) => hits.extend(openalex_hits),
                     Err(e) => {
-                        eprintln!("warning: OpenAlex DOI batch lookup failed: {e}");
+                        let error = e.to_string();
+                        eprintln!(
+                            "warning: OpenAlex DOI batch lookup failed: {}",
+                            terminal_safe(&error)
+                        );
                         retry_individually.extend(missing.iter().cloned());
                     }
                 }

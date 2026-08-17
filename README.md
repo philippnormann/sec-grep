@@ -31,6 +31,13 @@ cargo install --path crates/cs-grep
 Cargo installs to `~/.cargo/bin` on macOS/Linux and
 `%USERPROFILE%\.cargo\bin` on Windows. Make sure that directory is on `PATH`.
 
+Or use [`nix`](https://nixos.org/):
+
+```sh
+nix run "github:philippnormann/cs-grep" -- <arguments> # run once
+nix shell "github:philippnormann/cs-grep"              # add to PATH
+```
+
 ### Docker / Podman
 
 Build the image (includes CLI, TUI, and Web UI):
@@ -42,15 +49,10 @@ podman build -t cs-grep:latest .
 Run the Web UI:
 
 ```sh
+podman-compose run --rm web /usr/local/bin/cs-grep init --db /data/papers.db
+podman-compose run --rm web /usr/local/bin/cs-grep update --db /data/papers.db --since 2018
 podman-compose up -d
 # open http://localhost:5002
-```
-
-Or use [`nix`](https://nixos.org/):
-
-```sh
-nix run "github:philippnormann/cs-grep" -- <arguments> # run once
-nix shell "github:philippnormann/cs-grep"              # add to PATH
 ```
 
 ## Use
@@ -59,21 +61,6 @@ nix shell "github:philippnormann/cs-grep"              # add to PATH
 cs-grep init
 cs-grep update --since 2018
 cs-grep --tui
-```
-
-Run the TUI in a container (all commands use `--db /data/papers.db` so they share
-the `cs-grep_cs-grep-data` volume that the web service reads):
-
-```sh
-podman-compose run --rm web /usr/local/bin/cs-grep init --db /data/papers.db
-podman-compose run --rm web /usr/local/bin/cs-grep update --db /data/papers.db --since 2018
-podman run --rm -it -v cs-grep_cs-grep-data:/data cs-grep:latest /usr/local/bin/cs-grep --db /data/papers.db --tui
-```
-
-Run CLI in a container:
-
-```sh
-podman run --rm -v cs-grep_cs-grep-data:/data cs-grep:latest /usr/local/bin/cs-grep --db /data/papers.db 'fuzzing WHERE year:2024-'
 ```
 
 In the TUI, use `Tab` to cycle sort modes, arrow keys to move, and `Enter` to

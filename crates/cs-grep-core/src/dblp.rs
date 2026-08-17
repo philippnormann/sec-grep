@@ -11,36 +11,17 @@ pub const DEFAULT_ENDPOINT: &str = "https://sparql.dblp.org/sparql";
 const CONFERENCE_STREAM_PREFIX: &str = "conf/";
 const JOURNAL_STREAM_PREFIX: &str = "journals/";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum DblpPublicationType {
-    Inproceedings,
-    Article,
-}
-
-impl DblpPublicationType {
-    fn as_dblp_type(self) -> &'static str {
-        match self {
-            DblpPublicationType::Inproceedings => "Inproceedings",
-            DblpPublicationType::Article => "Article",
-        }
-    }
-}
-
-fn publication_type_for_stream(stream: &str) -> Result<DblpPublicationType> {
-    if stream.starts_with(CONFERENCE_STREAM_PREFIX) {
-        Ok(DblpPublicationType::Inproceedings)
-    } else if stream.starts_with(JOURNAL_STREAM_PREFIX) {
-        Ok(DblpPublicationType::Article)
-    } else {
-        Err(Error::Config(format!(
-            "unsupported DBLP stream `{stream}`; expected `{CONFERENCE_STREAM_PREFIX}...` or `{JOURNAL_STREAM_PREFIX}...`"
-        )))
-    }
-}
-
 /// Build the SPARQL query for a single DBLP venue stream, bounded by year.
 pub fn build_query(stream: &str, min_year: i32, max_year: i32) -> Result<String> {
-    let publ_type = publication_type_for_stream(stream)?.as_dblp_type();
+    let publ_type = if stream.starts_with(CONFERENCE_STREAM_PREFIX) {
+        "Inproceedings"
+    } else if stream.starts_with(JOURNAL_STREAM_PREFIX) {
+        "Article"
+    } else {
+        return Err(Error::Config(format!(
+            "unsupported DBLP stream `{stream}`; expected `{CONFERENCE_STREAM_PREFIX}...` or `{JOURNAL_STREAM_PREFIX}...`"
+        )));
+    };
     Ok(format!(
         r#"PREFIX dblp: <https://dblp.org/rdf/schema#>
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
@@ -49,11 +30,13 @@ SELECT ?publ ?title ?year ?ordinal ?author ?url WHERE {{
   ?publ dblp:publishedInStream <https://dblp.org/streams/{stream}> ;
         rdf:type dblp:{publ_type} ;
         dblp:title ?title ;
-        dblp:yearOfPublication ?year ;
+        dblp:yearOfPublication ?pubYear ;
         dblp:hasSignature ?sig .
   ?sig dblp:signatureDblpName ?author ;
        dblp:signatureOrdinal ?ordinal .
   OPTIONAL {{ ?publ dblp:primaryDocumentPage ?url . }}
+  OPTIONAL {{ ?publ dblp:yearOfEvent ?eventYear . }}
+  BIND(COALESCE(?eventYear, ?pubYear) AS ?year)
   FILTER(?year >= "{min_year}"^^xsd:gYear && ?year <= "{max_year}"^^xsd:gYear)
 }}
 ORDER BY ?publ xsd:integer(?ordinal)"#,
@@ -166,7 +149,7 @@ impl Default for Dblp {
 impl Dblp {
     pub fn new(endpoint: &str) -> Self {
         let client = reqwest::Client::builder()
-            .user_agent(concat!("sec-grep/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("cs-grep/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(Duration::from_secs(10))
             .timeout(Duration::from_secs(30))
             .build()
@@ -231,6 +214,12 @@ mod tests {
         assert!(q.contains("rdf:type dblp:Inproceedings"));
         assert!(q.contains("\"2000\"^^xsd:gYear"));
         assert!(q.contains("\"2025\"^^xsd:gYear"));
+    }
+
+    #[test]
+    fn query_gives_event_year_precedence_over_publication_year() {
+        let q = build_query("conf/esorics", 2000, 2025).unwrap();
+        assert!(q.contains("COALESCE(?eventYear, ?pubYear) AS ?year"));
     }
 
     #[test]

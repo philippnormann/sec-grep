@@ -1,16 +1,16 @@
-# sec-grep
+# cs-grep
 
-Fast, local search across the security and privacy research literature.
+Fast, local search across computer science research literature.
 
-![sec-grep TUI](assets/tui.png)
+![cs-grep TUI](assets/tui.png)
 
-`sec-grep` builds a local SQLite/FTS5 index from DBLP and gives you a clean CLI
+`cs-grep` builds a local SQLite/FTS5 index from DBLP and gives you a clean CLI
 and TUI for searching papers with an expressive query language across title,
 authors, abstract, venue, year, rank, tag, and DOI.
 
 ## Why
 
-- Search beyond the usual top-4 security venues with a configurable catalog.
+- Search across configurable computer science venue catalogs.
 - Keep the corpus local and query it quickly with SQLite/FTS5.
 - Search in the CLI or TUI, and export CSV, JSON, or BibTeX for scripts.
 
@@ -19,13 +19,13 @@ authors, abstract, venue, year, rank, tag, and DOI.
 Requires Rust 1.95 or newer.
 
 ```sh
-cargo install --git https://github.com/philippnormann/sec-grep sec-grep
+cargo install --git https://github.com/philippnormann/cs-grep cs-grep
 ```
 
 Or from a local checkout:
 
 ```sh
-cargo install --path crates/sec-grep
+cargo install --path crates/cs-grep
 ```
 
 Cargo installs to `~/.cargo/bin` on macOS/Linux and
@@ -36,7 +36,7 @@ Cargo installs to `~/.cargo/bin` on macOS/Linux and
 Build the image (includes CLI, TUI, and Web UI):
 
 ```sh
-podman build -t sec-grep:latest .
+podman build -t cs-grep:latest .
 ```
 
 Run the Web UI:
@@ -49,30 +49,30 @@ podman-compose up -d
 Or use [`nix`](https://nixos.org/):
 
 ```sh
-nix run "github:philippnormann/sec-grep" -- <arguments> # run once
-nix shell "github:philippnormann/sec-grep"              # add to PATH
+nix run "github:philippnormann/cs-grep" -- <arguments> # run once
+nix shell "github:philippnormann/cs-grep"              # add to PATH
 ```
 
 ## Use
 
 ```sh
-sec-grep init
-sec-grep update --since 2018
-sec-grep --tui
+cs-grep init
+cs-grep update --since 2018
+cs-grep --tui
 ```
 
 Run the TUI in a container:
 
 ```sh
-podman-compose run --rm web /usr/local/bin/sec-grep init
-podman-compose run --rm web /usr/local/bin/sec-grep update --since 2018
-podman run --rm -it -v sec-grep_sec-grep-data:/data sec-grep:latest /usr/local/bin/sec-grep --tui
+podman-compose run --rm web /usr/local/bin/cs-grep init
+podman-compose run --rm web /usr/local/bin/cs-grep update --since 2018
+podman run --rm -it -v cs-grep_cs-grep-data:/data cs-grep:latest /usr/local/bin/cs-grep --tui
 ```
 
 Run CLI in a container:
 
 ```sh
-podman run --rm -v sec-grep_sec-grep-data:/data sec-grep:latest /usr/local/bin/sec-grep 'fuzzing' --year 2024-
+podman run --rm -v cs-grep_cs-grep-data:/data cs-grep:latest /usr/local/bin/cs-grep 'fuzzing WHERE year:2024-'
 ```
 
 In the TUI, use `Tab` to cycle sort modes, arrow keys to move, and `Enter` to
@@ -84,81 +84,96 @@ Sort CLI results with `--sort relevance`, `--sort year`, `--sort venue`, or
 Search from the shell:
 
 ```sh
-sec-grep 'title:fuzzing venue:ndss year:2020-'
-sec-grep '"side channel" OR cache' --venue CCS,SP
-sec-grep 'doi:10.1145' --fields venue,year,title,doi
+cs-grep 'title:fuzzing WHERE venue:ndss AND year:2020-'
+cs-grep '("side channel" OR cache) WHERE venue:CCS OR venue:SP'
+cs-grep '* WHERE doi:10.1145' --fields venue,year,title,doi
 ```
 
 More examples:
 
 ```sh
 # Recent malware-detection papers in A/A* venues
-sec-grep 'malware detection' --year 2022- --rank A --rank 'A*' --sort year
+cs-grep 'malware detection WHERE year:2022- AND (rank:A OR rank:A*)' --sort year
 
 # Export matching papers as BibTeX
-sec-grep 'kernel fuzz*' --venue USENIX-SEC --format bibtex > papers.bib
+cs-grep 'kernel fuzz* WHERE venue:USENIX-SEC' --format bibtex > papers.bib
 
-# Script-friendly CSV with selected columns
-sec-grep 'abstract:"large language model"' --tag systems \
-  --format csv \
-  --fields venue,year,title,authors,url
+# Script-friendly JSON output
+cs-grep 'large language model WHERE year:2023-' --format json
 
 # Limit output for quick triage
-sec-grep 'ransomware OR botnet' --year 2020- --limit 20
+cs-grep '(ransomware OR botnet) WHERE year:2020-' --limit 20
 
 # Search a custom database path
-sec-grep --db ./papers.db 'symbolic execution' --venue ccs
+cs-grep --db ./papers.db 'symbolic execution WHERE venue:ccs'
 ```
 
 ## Query Language
 
-- Boolean search: `AND`, `OR`, `NOT`, parentheses, and quoted phrases.
-- Text fields: `title:`, `author:`, `abstract:`.
-- Metadata filters: `venue:`, `year:`, `rank:`, `tag:`, `doi:`.
-- Prefix search: `fuzz*`.
-
-Year filters accept `2020`, `2018-2024`, `2020-`, and `-2019`.
-
-Metadata filters can be written inline:
+Queries have a full-text expression followed by optional metadata filters:
 
 ```sh
-sec-grep 'malware detection year:2022- rank:A'
+cs-grep '(malware OR botnet) WHERE year:2020- AND NOT venue:CCS'
 ```
 
-or as CLI flags:
+- Both sides support `AND`, `OR`, `NOT`, parentheses, and implicit `AND`.
+- Text supports phrases, trailing prefixes such as `fuzz*`, and the fields
+  `title:`, `author:`, and `abstract:`.
+- `WHERE` supports `venue:`, `year:`, `rank:`, `tag:`, and `doi:`.
+- `*` matches all papers when only metadata filters are needed.
+- Year values can be `2020`, `2018-2024`, `2020-`, or `-2019`.
+
+Text `NOT` requires a positive text term; metadata filters can be negated
+directly.
 
 ```sh
-sec-grep 'malware detection' --year 2022- --rank A
+cs-grep '* WHERE tag:ml AND tag:security'
+cs-grep '* WHERE tag:ml OR tag:security'
 ```
 
-Boolean operators apply only to full-text terms. Metadata filters are ORed
-within one field and ANDed across fields.
+## Bundles and Tags
+
+Bundles choose which venue catalogs `update` and `enrich` process. Tags filter
+papers by venue family during search. Bundled venues use the broad tags
+`security`, `ml`, `nlp`, `cv`, `se`, and `hci`; custom venues can define
+additional tags. The default bundles are `security`, `ml`, and `se`; `hci` is
+available separately.
 
 ```sh
-sec-grep 'malware OR botnet' --rank A --rank 'A*'
-sec-grep 'malware OR botnet year:2018 year:2029'
-sec-grep 'malware OR botnet' --rank A --tag systems
+cs-grep update --bundle security,ml
+cs-grep update --bundle hci
+cs-grep enrich --bundle ml
+```
+
+```sh
+# ML venue papers
+cs-grep 'mechanistic interpretability WHERE tag:ml AND year:2023-'
+
+# Papers from ML-security venues
+cs-grep '(prompt injection OR jailbreak) WHERE tag:ml AND tag:security'
 ```
 
 ## Venues
 
-The bundled venue catalog lives in `crates/sec-grep-core/venues.yaml`. It
-defines each venue's display name, DBLP stream, aliases, rank, tags, and
-abstract parser hint.
+The bundled venue catalogs are listed in
+[`crates/cs-grep-core/venues/`](crates/cs-grep-core/venues/).
 
-After `sec-grep init`, you can extend or override the catalog with a user
-`venues.yaml`:
+After `cs-grep init`, you can extend or override the catalog with a user
+`config.yaml`:
 
-- macOS: `~/Library/Application Support/sec-grep/venues.yaml`
-- Linux: `~/.config/sec-grep/venues.yaml`
-- Windows: `%APPDATA%\sec-grep\venues.yaml`
+- macOS: `~/Library/Application Support/cs-grep/config.yaml`
+- Linux: `~/.config/cs-grep/config.yaml`
+- Windows: `%APPDATA%\cs-grep\config.yaml`
 
-You can also pass a specific file with `--config path/to/venues.yaml`.
+You can also pass a specific file with `--config path/to/config.yaml`.
 
-User venues are merged by `id`: reuse an existing `id` to override a bundled
-venue, or add a new `id` to extend the catalog.
+`bundles` selects bundled venue sets for subfields. User venues are always
+merged after selected bundles by `id`: reuse an existing `id` to override a
+bundled venue, or add a new `id` to extend the catalog.
 
 ```yaml
+bundles: [security, ml, se]
+
 defaults:
   min_year: 2018
 
@@ -169,42 +184,42 @@ venues:
     aliases: [dimva]
     rank: B
     tags: [systems, network, malware]
-    abstract_source: springer
 ```
 
 Then ingest and search it:
 
 ```sh
-sec-grep update --venue DIMVA
-sec-grep 'malware' --venue DIMVA
+cs-grep update --venue DIMVA
+cs-grep 'malware WHERE venue:DIMVA'
 ```
 
-`dblp_stream` is the DBLP stream slug from URLs like
-`https://dblp.org/streams/conf/dimva`. `abstract_source` is optional; supported
-values are `acm`, `ieee`, `ndss`, `springer`, and `usenix`.
+`dblp_stream` is the DBLP stream id used by the RDF endpoint, such as
+`conf/dimva`.
 
 ## Abstracts
 
-Abstract enrichment is optional, cached, and best-effort. sec-grep first tries
-DOI-based APIs, then falls back to static publisher-page parsers.
+Abstract enrichment is optional, cached, and best-effort. cs-grep uses paper
+DOIs and DBLP paper URLs to find abstracts.
 
 ```sh
-sec-grep update --abstracts
-sec-grep enrich --jobs 8
+cs-grep enrich --jobs 8
 ```
 
 No API keys are required, but keys can improve rate limits and coverage.
 
 | Variable | Used for | Get a key |
 |---|---|---|
-| `OPENALEX_API_KEY` | OpenAlex DOI lookup | [openalex.org/settings/api](https://openalex.org/settings/api) |
-| `SEMANTIC_SCHOLAR_S2_KEY` | Semantic Scholar DOI lookup | [semanticscholar.org/product/api](https://www.semanticscholar.org/product/api) |
+| `OPENALEX_API_KEY` | OpenAlex lookups | [openalex.org/settings/api](https://openalex.org/settings/api) |
+| `SEMANTIC_SCHOLAR_S2_KEY` | Semantic Scholar lookups | [semanticscholar.org/product/api](https://www.semanticscholar.org/product/api) |
+| `OPENREVIEW_USERNAME` / `OPENREVIEW_PASSWORD` | OpenReview lookups | [OpenReview API docs](https://docs.openreview.net/getting-started/using-the-api/installing-and-instantiating-the-python-client) |
 
 Set them in the shell:
 
 ```sh
 export OPENALEX_API_KEY=...
 export SEMANTIC_SCHOLAR_S2_KEY=...
+export OPENREVIEW_USERNAME=...
+export OPENREVIEW_PASSWORD=...
 ```
 
 Or place them in a local `.env` file:
@@ -212,6 +227,8 @@ Or place them in a local `.env` file:
 ```sh
 OPENALEX_API_KEY=
 SEMANTIC_SCHOLAR_S2_KEY=
+OPENREVIEW_USERNAME=
+OPENREVIEW_PASSWORD=
 ```
 
 `.env` is loaded automatically when present.

@@ -1,6 +1,6 @@
 //! Render papers as a table, JSON, CSV, or BibTeX.
 
-use std::str::FromStr;
+use std::{borrow::Cow, str::FromStr};
 
 use crate::{Error, Paper, Result};
 
@@ -95,6 +95,37 @@ const ALL_COLS: &[Column] = &[
     Column::Abstract,
 ];
 
+pub fn terminal_safe(value: &str) -> Cow<'_, str> {
+    if !value.chars().any(is_unsafe_terminal_char) {
+        return Cow::Borrowed(value);
+    }
+
+    let mut safe = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if is_unsafe_terminal_char(ch) {
+            safe.extend(ch.escape_default());
+        } else {
+            safe.push(ch);
+        }
+    }
+    Cow::Owned(safe)
+}
+
+fn is_unsafe_terminal_char(ch: char) -> bool {
+    ch.is_control()
+        || matches!(
+            ch,
+            '\u{061c}'
+                | '\u{200e}'
+                | '\u{200f}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202a}'..='\u{202e}'
+                | '\u{2066}'..='\u{2069}'
+                | '\u{206a}'..='\u{206f}'
+        )
+}
+
 /// Render papers in the requested format. `columns` overrides the default
 /// column set for table/csv output (ignored for json/bibtex).
 pub fn render(papers: &[Paper], format: Format, columns: Option<&[Column]>) -> Result<String> {
@@ -104,6 +135,42 @@ pub fn render(papers: &[Paper], format: Format, columns: Option<&[Column]>) -> R
         Format::Json => Ok(serde_json::to_string_pretty(papers)?),
         Format::Bibtex => Ok(bibtex(papers)),
     }
+}
+
+pub fn render_terminal(
+    papers: &[Paper],
+    format: Format,
+    columns: Option<&[Column]>,
+) -> Result<String> {
+    match format {
+        Format::Table => Ok(table(papers, columns.unwrap_or(DEFAULT_TABLE_COLS))),
+        Format::Csv => csv_with(papers, columns.unwrap_or(ALL_COLS), true),
+        Format::Json => {
+            let json = serde_json::to_string_pretty(papers)?;
+            Ok(terminal_safe_json(&json).into_owned())
+        }
+        Format::Bibtex => Ok(bibtex_with(papers, true)),
+    }
+}
+
+fn terminal_safe_json(json: &str) -> Cow<'_, str> {
+    if !json
+        .chars()
+        .any(|ch| is_unsafe_terminal_char(ch) && !matches!(ch, '\n' | '\r' | '\t'))
+    {
+        return Cow::Borrowed(json);
+    }
+
+    use std::fmt::Write;
+    let mut safe = String::with_capacity(json.len());
+    for ch in json.chars() {
+        if is_unsafe_terminal_char(ch) && !matches!(ch, '\n' | '\r' | '\t') {
+            let _ = write!(safe, "\\u{:04x}", u32::from(ch));
+        } else {
+            safe.push(ch);
+        }
+    }
+    Cow::Owned(safe)
 }
 
 fn truncate(s: &str, max: usize) -> String {
@@ -129,7 +196,10 @@ fn table(papers: &[Paper], cols: &[Column]) -> String {
     for p in papers {
         rows.push(
             cols.iter()
-                .map(|c| truncate(&c.value(p), cap(*c)))
+                .map(|column| {
+                    let value = column.value(p);
+                    truncate(&terminal_safe(&value), cap(*column))
+                })
                 .collect(),
         );
     }
@@ -169,37 +239,62 @@ fn table(papers: &[Paper], cols: &[Column]) -> String {
 }
 
 fn csv(papers: &[Paper], cols: &[Column]) -> Result<String> {
+    csv_with(papers, cols, false)
+}
+
+fn csv_with(papers: &[Paper], cols: &[Column], for_terminal: bool) -> Result<String> {
     let mut wtr = csv::Writer::from_writer(Vec::new());
     wtr.write_record(cols.iter().map(|c| c.header()))?;
     for p in papers {
-        wtr.write_record(cols.iter().map(|c| c.value(p)))?;
+        wtr.write_record(cols.iter().map(|column| {
+            let value = column.value(p);
+            if for_terminal {
+                terminal_safe(&value).into_owned()
+            } else {
+                value
+            }
+        }))?;
     }
     let bytes = wtr.into_inner().map_err(|e| e.into_error())?;
     Ok(String::from_utf8(bytes)?)
 }
 
 fn bibtex(papers: &[Paper]) -> String {
+    bibtex_with(papers, false)
+}
+
+fn bibtex_with(papers: &[Paper], for_terminal: bool) -> String {
     use std::fmt::Write;
 
+    let field = |value: &str| {
+        let escaped = bibtex_value(value);
+        if for_terminal {
+            terminal_safe(&escaped).into_owned()
+        } else {
+            escaped
+        }
+    };
     let mut out = String::new();
     for (i, p) in papers.iter().enumerate() {
         if i > 0 {
             out.push('\n');
         }
         let _ = writeln!(out, "@inproceedings{{{},", bibtex_key(&p.cite_key()));
-        let _ = writeln!(out, "  title     = {{{}}},", bibtex_value(&p.title));
-        let _ = writeln!(
-            out,
-            "  author    = {{{}}},",
-            bibtex_value(&p.authors_bibtex())
-        );
-        let _ = writeln!(out, "  booktitle = {{{}}},", bibtex_value(&p.venue));
+        let _ = writeln!(out, "  title     = {{{}}},", field(&p.title));
+        let authors = p
+            .authors
+            .split(", ")
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(" and ");
+        let _ = writeln!(out, "  author    = {{{}}},", field(&authors));
+        let _ = writeln!(out, "  booktitle = {{{}}},", field(&p.venue));
         let _ = writeln!(out, "  year      = {{{}}},", p.year);
         if let Some(doi) = &p.doi {
-            let _ = writeln!(out, "  doi       = {{{}}},", bibtex_value(doi));
+            let _ = writeln!(out, "  doi       = {{{}}},", field(doi));
         }
         if let Some(url) = &p.url {
-            let _ = writeln!(out, "  url       = {{{}}},", bibtex_value(url));
+            let _ = writeln!(out, "  url       = {{{}}},", field(url));
         }
         out.push_str("}\n");
     }
@@ -255,6 +350,22 @@ mod tests {
             url: Some("https://doi.org/10.1/x".into()),
             abstract_text: Some("we fuzz kernels".into()),
         }]
+    }
+    const UNSAFE_TITLE: &str = "OK\x1b]52;c;payload\x07\nmalicious\u{202e}";
+    const ESCAPED_TITLE: &str = r"OK\u{1b}]52;c;payload\u{7}\nmalicious\u{202e}";
+
+    fn paper_with_unsafe_title() -> Paper {
+        let mut paper = sample().remove(0);
+        paper.title = UNSAFE_TITLE.into();
+        paper
+    }
+
+    fn assert_title_is_terminal_safe(rendered: &str) {
+        assert!(!rendered.contains('\x1b'));
+        assert!(!rendered.contains('\x07'));
+        assert!(!rendered.contains("\nmalicious"));
+        assert!(!rendered.contains('\u{202e}'));
+        assert!(rendered.contains(ESCAPED_TITLE));
     }
 
     #[test]
@@ -326,6 +437,58 @@ mod tests {
         assert!(b.contains(r"booktitle = {S\&P},"));
         assert!(b.contains(r"doi       = {10.1/a\_b},"));
         assert!(b.contains(r"url       = {https://example.com/a\textbackslash{}b},"));
+    }
+
+    #[test]
+    fn terminal_safe_escapes_controls() {
+        let unsafe_text: String = (0..=0x9f)
+            .filter_map(char::from_u32)
+            .chain([
+                '\u{061c}', '\u{200e}', '\u{200f}', '\u{2028}', '\u{2029}', '\u{202a}', '\u{202e}',
+                '\u{2066}', '\u{2069}', '\u{206a}', '\u{206f}',
+            ])
+            .collect();
+
+        let safe = terminal_safe(&unsafe_text);
+
+        assert!(!safe.chars().any(is_unsafe_terminal_char));
+        assert!(safe.contains(r"\u{1b}"));
+        assert!(safe.contains(r"\u{202e}"));
+    }
+
+    #[test]
+    fn table_neutralizes_controls_in_meta() {
+        let table = render(&[paper_with_unsafe_title()], Format::Table, None).unwrap();
+
+        assert_title_is_terminal_safe(&table);
+    }
+
+    #[test]
+    fn terminal_renderer_neutralizes_meta() {
+        let paper = paper_with_unsafe_title();
+
+        for format in [Format::Csv, Format::Bibtex] {
+            let raw = render(std::slice::from_ref(&paper), format, None).unwrap();
+            let terminal = render_terminal(std::slice::from_ref(&paper), format, None).unwrap();
+
+            assert!(raw.contains('\x1b'));
+            assert_title_is_terminal_safe(&terminal);
+        }
+    }
+
+    #[test]
+    fn terminal_json_neutralizes_meta_and_round_trips() {
+        let paper = paper_with_unsafe_title();
+        let raw = render(std::slice::from_ref(&paper), Format::Json, None).unwrap();
+        let terminal = render_terminal(std::slice::from_ref(&paper), Format::Json, None).unwrap();
+
+        assert!(raw.contains('\u{202e}'));
+        assert!(!terminal.contains('\u{202e}'));
+        assert!(terminal.contains(r"\u202e"));
+        assert_eq!(
+            serde_json::from_str::<Vec<Paper>>(&terminal).unwrap(),
+            vec![paper]
+        );
     }
 
     #[test]

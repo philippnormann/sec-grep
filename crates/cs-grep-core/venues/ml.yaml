@@ -1,0 +1,65 @@
+# Machine learning venues bundled with cs-grep.
+
+venues:
+  - id: NeurIPS
+    name: Conference on Neural Information Processing Systems
+    dblp_stream: conf/nips
+    aliases: [neurips, nips]
+    rank: A*
+    tags: [ml]
+
+  - id: ICML
+    name: International Conference on Machine Learning
+    dblp_stream: conf/icml
+    aliases: [icml]
+    rank: A*
+    tags: [ml]
+
+  - id: ICLR
+    name: International Conference on Learning Representations
+    dblp_stream: conf/iclr
+    aliases: [iclr]
+    rank: A*
+    tags: [ml]
+
+  - id: ACL
+    name: Annual Meeting of the Association for Computational Linguistics
+    dblp_stream: conf/acl
+    aliases: [acl]
+    rank: A*
+    tags: [ml, nlp]
+
+  - id: EMNLP
+    name: Conference on Empirical Methods in Natural Language Processing
+    dblp_stream: conf/emnlp
+    aliases: [emnlp]
+    rank: A*
+    tags: [ml, nlp]
+
+  - id: CVPR
+    name: IEEE/CVF Conference on Computer Vision and Pattern Recognition
+    dblp_stream: conf/cvpr
+    aliases: [cvpr]
+    rank: A*
+    tags: [ml, cv]
+
+  - id: ICCV
+    name: IEEE/CVF International Conference on Computer Vision
+    dblp_stream: conf/iccv
+    aliases: [iccv]
+    rank: A*
+    tags: [ml, cv]
+
+  - id: IJCAI
+    name: International Joint Conference on Artificial Intelligence
+    dblp_stream: conf/ijcai
+    aliases: [ijcai]
+    rank: A*
+    tags: [ml]
+
+  - id: AAAI
+    name: AAAI Conference on Artificial Intelligence
+    dblp_stream: conf/aaai
+    aliases: [aaai]
+    rank: A*
+    tags: [ml]

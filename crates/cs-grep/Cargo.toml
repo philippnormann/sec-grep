@@ -1,5 +1,5 @@
 [package]
-name = "sec-grep"
+name = "cs-grep"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,17 +8,14 @@ license.workspace = true
 repository.workspace = true
 
 [[bin]]
-name = "sec-grep"
+name = "cs-grep"
 path = "src/main.rs"
 
 [dependencies]
-sec-grep-core = { version = "0.1.0", path = "../sec-grep-core" }
+cs-grep-core = { version = "0.1.0", path = "../cs-grep-core" }
 clap.workspace = true
 anyhow.workspace = true
 tokio.workspace = true
-futures.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
 ratatui.workspace = true
 crossterm.workspace = true
 url.workspace = true

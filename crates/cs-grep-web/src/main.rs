@@ -14,10 +14,10 @@ use axum::{
     Json, Router,
 };
 use clap::Parser;
-use sec_grep_core::config::Config;
-use sec_grep_core::db::Database;
-use sec_grep_core::{build_search, Paper, SearchOptions, output};
-use sec_grep_core::db::Sort;
+use cs_grep_core::config::Config;
+use cs_grep_core::db::{Database, Search, Sort};
+use cs_grep_core::query;
+use cs_grep_core::{output, Paper};
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
@@ -26,16 +26,19 @@ const STYLES_CSS: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/asse
 const APP_JS: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/app.js"));
 
 /// Access log middleware - logs method, path, status, latency
-async fn access_log(
-    req: axum::http::Request<axum::body::Body>,
-    next: Next,
-) -> impl IntoResponse {
+async fn access_log(req: axum::http::Request<axum::body::Body>, next: Next) -> impl IntoResponse {
     let start = Instant::now();
     let method = req.method().clone();
     let uri = req.uri().to_string();
     let response = next.run(req).await;
     let latency = start.elapsed().as_millis();
-    info!("{} {} {} {}ms", method, uri, response.status().as_u16(), latency);
+    info!(
+        "{} {} {} {}ms",
+        method,
+        uri,
+        response.status().as_u16(),
+        latency
+    );
     response
 }
 
@@ -48,7 +51,7 @@ struct AppState {
 }
 
 #[derive(Parser, Debug)]
-#[command(name = "sec-grep-web", version)]
+#[command(name = "cs-grep-web", version)]
 struct Args {
     /// Host to listen on
     #[arg(long, default_value = "127.0.0.1")]
@@ -101,8 +104,7 @@ fn search_error(status: StatusCode, message: &str) -> axum::response::Response {
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .with_target(false)
         .without_time()
@@ -111,19 +113,17 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     // Resolve paths
-    let paths = sec_grep_core::config::Paths::resolve()
-        .context("failed to resolve paths")?;
+    let paths = cs_grep_core::config::Paths::resolve().context("failed to resolve paths")?;
     let db_path = args.db.unwrap_or_else(|| paths.db_path());
-    let config_path = paths.user_venues_path();
+    let config_path = paths.user_config_path();
 
     // Load config and open database once at startup
     let config = Arc::new(
-        Config::load(Some(&config_path))
-            .context("loading venue config")?
+        Config::load_with_bundles(Some(&config_path), None).context("loading venue config")?,
     );
     let db = Arc::new(Mutex::new(
         Database::open_existing(&db_path)
-            .with_context(|| format!("no database at {}", db_path.display()))?
+            .with_context(|| format!("no database at {}", db_path.display()))?,
     ));
 
     let mut ranks = HashMap::new();
@@ -132,7 +132,11 @@ async fn main() -> anyhow::Result<()> {
             ranks.insert(venue.id.clone(), rank.to_string());
         }
     }
-    let state = AppState { config, db, ranks: Arc::new(ranks) };
+    let state = AppState {
+        config,
+        db,
+        ranks: Arc::new(ranks),
+    };
 
     let app = Router::new()
         .route("/api/search", get(api_search))
@@ -152,7 +156,7 @@ async fn main() -> anyhow::Result<()> {
     let addr: SocketAddr = format!("{}:{}", args.host, args.port)
         .parse()
         .with_context(|| format!("invalid address: {}:{}", args.host, args.port))?;
-    info!("sec-grep web UI listening on http://{}", addr);
+    info!("cs-grep web UI listening on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
@@ -168,23 +172,21 @@ async fn api_search(
 ) -> impl IntoResponse {
     let sort = parse_sort(params.sort.as_deref(), &state.config);
     let query = params.q.as_deref().unwrap_or("");
-    let limit = params.limit.as_deref().unwrap_or("120").parse::<usize>().ok();
-    let offset = params.offset.as_deref().unwrap_or("0").parse::<usize>().ok();
+    let limit = params
+        .limit
+        .as_deref()
+        .unwrap_or("120")
+        .parse::<usize>()
+        .ok();
+    let offset = params
+        .offset
+        .as_deref()
+        .unwrap_or("0")
+        .parse::<usize>()
+        .ok();
 
     // Build search
-    let search = match build_search(
-        query,
-        &state.config,
-        SearchOptions {
-            venues: &[],
-            ranks: &[],
-            tags: &[],
-            years: &[],
-            sort,
-            limit,
-            offset,
-        },
-    ) {
+    let search = match build_search(query, &state.config, sort, limit, offset) {
         Ok(search) => search,
         Err(e) => {
             warn!("search build error: {}", e);
@@ -258,20 +260,37 @@ fn parse_sort(sort_str: Option<&str>, config: &Config) -> Sort {
     }
 }
 
+/// Compile a raw query string and options into a ready-to-run `Search`.
+fn build_search(
+    raw_query: &str,
+    config: &Config,
+    sort: Sort,
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> cs_grep_core::Result<Search> {
+    let parsed = query::parse(raw_query, config)?;
+    Ok(Search {
+        fts: parsed.fts,
+        filter: parsed.filter,
+        sort,
+        limit,
+        offset,
+    })
+}
+
 /// Minimal `oneshot` replacement — run a single request against an axum Router
-/// without binding a network port. Avoids a direct `tower` dev-dependency.
+/// without binding a network port. Avoids polluting the app with a `tower`
+/// runtime dependency by keeping tower/test-only crates in dev-dependencies.
+#[cfg(test)]
 fn oneshot<S>(svc: S, req: axum::http::Request<axum::body::Body>) -> S::Response
 where
-    S: axum::Service<axum::http::Request<axum::body::Body>, Response = axum::response::Response> + Send + 'static,
-    S::Error: Send,
+    S: tower::Service<axum::http::Request<axum::body::Body>, Response = axum::response::Response>
+        + Send
+        + 'static,
+    S::Error: Send + std::fmt::Debug,
 {
-    let svc = std::sync::Arc::new(svc);
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    tokio::spawn(async move {
-        let res = svc.ready().await.and_then(|svc| svc.call(req));
-        let _ = tx.send(res);
-    });
-    futures::executor::block_on(rx).expect("response channel closed").expect("service call failed")
+    use tower::ServiceExt;
+    futures::executor::block_on(svc.oneshot(req)).expect("service call failed")
 }
 
 #[cfg(test)]
@@ -279,9 +298,9 @@ mod tests {
     use super::*;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
-    use sec_grep_core::config::Config;
-    use sec_grep_core::db::Database;
-    use sec_grep_core::Paper;
+    use cs_grep_core::config::Config;
+    use cs_grep_core::db::Database;
+    use cs_grep_core::Paper;
     use std::collections::HashMap;
 
     fn paper(key: &str, venue: &str, year: i32, title: &str, abs: Option<&str>) -> Paper {
@@ -300,7 +319,13 @@ mod tests {
     fn test_state() -> AppState {
         let mut db = Database::open_in_memory().unwrap();
         db.upsert_papers(&[
-            paper("k1", "NDSS", 2020, "Fuzzing the Linux kernel", Some("we fuzz kernels")),
+            paper(
+                "k1",
+                "NDSS",
+                2020,
+                "Fuzzing the Linux kernel",
+                Some("we fuzz kernels"),
+            ),
             paper("k2", "CCS", 2021, "Side channel attacks", None),
             paper("k3", "SP", 2019, "Kernel exploitation", Some("rop chains")),
         ])
@@ -325,30 +350,31 @@ mod tests {
             )
             .route(
                 "/static/app.js",
-                get(|| async {
-                    (
-                        [(header::CONTENT_TYPE, "application/javascript")],
-                        APP_JS,
-                    )
-                }),
+                get(|| async { ([(header::CONTENT_TYPE, "application/javascript")], APP_JS) }),
             )
             .route("/api/bibtex", get(api_bibtex))
             .fallback(|| async { Html(INDEX_HTML) })
             .with_state(state)
     }
 
-    #[test]
-    fn search_empty_query_returns_all_papers() {
+    #[tokio::test]
+    async fn search_empty_query_returns_all_papers() {
         let state = test_state();
         let app = create_test_app(state);
 
-        let response = oneshot(app, Request::builder().uri("/api/search").body(Body::empty()).unwrap());
+        let response = oneshot(
+            app,
+            Request::builder()
+                .uri("/api/search")
+                .body(Body::empty())
+                .unwrap(),
+        );
 
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    #[test]
-    fn search_with_query_filters_papers() {
+    #[tokio::test]
+    async fn search_with_query_filters_papers() {
         let state = test_state();
         let app = create_test_app(state);
 
@@ -370,8 +396,8 @@ mod tests {
         assert_eq!(json.papers[0].title, "Fuzzing the Linux kernel");
     }
 
-    #[test]
-    fn search_with_invalid_query_returns_error() {
+    #[tokio::test]
+    async fn search_with_invalid_query_returns_error() {
         let state = test_state();
         let app = create_test_app(state);
 
@@ -393,8 +419,8 @@ mod tests {
         assert!(json.papers.is_empty());
     }
 
-    #[test]
-    fn search_with_limit_returns_bounded_results() {
+    #[tokio::test]
+    async fn search_with_limit_returns_bounded_results() {
         let state = test_state();
         let app = create_test_app(state);
 
@@ -415,8 +441,8 @@ mod tests {
         assert!(json.papers.len() <= 2);
     }
 
-    #[test]
-    fn search_with_offset_skips_results() {
+    #[tokio::test]
+    async fn search_with_offset_skips_results() {
         let state = test_state();
         let app = create_test_app(state);
 
@@ -438,8 +464,8 @@ mod tests {
         assert!(json.papers.len() <= 1);
     }
 
-    #[test]
-    fn search_with_sort_parameter() {
+    #[tokio::test]
+    async fn search_with_sort_parameter() {
         let state = test_state();
         let app = create_test_app(state);
 
@@ -460,8 +486,8 @@ mod tests {
         assert!(!json.papers.is_empty());
     }
 
-    #[test]
-    fn bibtex_returns_plain_text() {
+    #[tokio::test]
+    async fn bibtex_returns_plain_text() {
         let state = test_state();
         let app = create_test_app(state);
 
@@ -482,8 +508,8 @@ mod tests {
         assert!(text.contains("@"));
     }
 
-    #[test]
-    fn bibtex_missing_key_returns_404() {
+    #[tokio::test]
+    async fn bibtex_missing_key_returns_404() {
         let state = test_state();
         let app = create_test_app(state);
 
@@ -498,8 +524,8 @@ mod tests {
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
-    #[test]
-    fn static_css_returns_200_with_correct_content_type() {
+    #[tokio::test]
+    async fn static_css_returns_200_with_correct_content_type() {
         let state = test_state();
         let app = create_test_app(state);
 
@@ -521,8 +547,8 @@ mod tests {
         assert_eq!(content_type, "text/css");
     }
 
-    #[test]
-    fn static_js_returns_200_with_correct_content_type() {
+    #[tokio::test]
+    async fn static_js_returns_200_with_correct_content_type() {
         let state = test_state();
         let app = create_test_app(state);
 
@@ -544,8 +570,8 @@ mod tests {
         assert_eq!(content_type, "application/javascript");
     }
 
-    #[test]
-    fn fallback_returns_html() {
+    #[tokio::test]
+    async fn fallback_returns_html() {
         let state = test_state();
         let app = create_test_app(state);
 
@@ -600,4 +626,3 @@ mod tests {
         assert_eq!(parse_sort(Some("unknown"), &config), Sort::Year);
     }
 }
-

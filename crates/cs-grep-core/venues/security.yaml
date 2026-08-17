@@ -1,0 +1,86 @@
+# Security and AI-security venues bundled with cs-grep.
+
+venues:
+  - id: NDSS
+    name: Network and Distributed System Security Symposium
+    dblp_stream: conf/ndss
+    aliases: [ndss]
+    rank: A*
+    tags: [security]
+
+  - id: USENIX-SEC
+    name: USENIX Security Symposium
+    dblp_stream: conf/uss
+    aliases: [usenix, usenix-security, uss]
+    rank: A*
+    tags: [security]
+
+  - id: SP
+    name: IEEE Symposium on Security and Privacy
+    dblp_stream: conf/sp
+    aliases: [sp, oakland, ieee-sp, "s&p"]
+    rank: A*
+    tags: [security]
+
+  - id: CCS
+    name: ACM Conference on Computer and Communications Security
+    dblp_stream: conf/ccs
+    aliases: [ccs, acm-ccs]
+    rank: A*
+    tags: [security]
+
+  - id: RAID
+    name: Symposium on Research in Attacks, Intrusions and Defenses
+    dblp_stream: conf/raid
+    aliases: [raid]
+    rank: A
+    tags: [security]
+
+  - id: ACSAC
+    name: Annual Computer Security Applications Conference
+    dblp_stream: conf/acsac
+    aliases: [acsac]
+    rank: A
+    tags: [security]
+
+  - id: ESORICS
+    name: European Symposium on Research in Computer Security
+    dblp_stream: conf/esorics
+    aliases: [esorics]
+    rank: A
+    tags: [security]
+
+  - id: AsiaCCS
+    name: ACM Asia Conference on Computer and Communications Security
+    dblp_stream: conf/asiaccs
+    aliases: [asiaccs, asia-ccs]
+    rank: A
+    tags: [security]
+
+  - id: EuroSP
+    name: IEEE European Symposium on Security and Privacy
+    dblp_stream: conf/eurosp
+    aliases: [eurosp, euro-s&p, euros&p]
+    rank: A
+    tags: [security]
+
+  - id: AISec
+    name: ACM Workshop on Artificial Intelligence and Security
+    dblp_stream: conf/aisec-ws
+    aliases: [aisec, ai-sec]
+    rank: workshop
+    tags: [security, ml]
+
+  - id: SaTML
+    name: IEEE Conference on Secure and Trustworthy Machine Learning
+    dblp_stream: conf/satml
+    aliases: [satml]
+    rank: A
+    tags: [security, ml]
+
+  - id: SOUPS
+    name: Symposium on Usable Privacy and Security
+    dblp_stream: conf/soups
+    aliases: [soups]
+    rank: A
+    tags: [security, hci]

@@ -1,0 +1,23 @@
+# Software engineering venues bundled with cs-grep.
+
+venues:
+  - id: ICSE
+    name: IEEE/ACM International Conference on Software Engineering
+    dblp_stream: conf/icse
+    aliases: [icse]
+    rank: A*
+    tags: [se]
+
+  - id: FSE
+    name: ACM International Conference on the Foundations of Software Engineering
+    dblp_stream: conf/sigsoft
+    aliases: [fse, esec-fse, sigsoft-fse]
+    rank: A*
+    tags: [se]
+
+  - id: ASE
+    name: IEEE/ACM International Conference on Automated Software Engineering
+    dblp_stream: conf/kbse
+    aliases: [ase]
+    rank: A*
+    tags: [se]

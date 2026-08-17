@@ -1,5 +1,5 @@
 [package]
-name = "sec-grep-core"
+name = "cs-grep-core"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -14,8 +14,8 @@ serde_yaml.workspace = true
 rusqlite.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
+futures.workspace = true
 thiserror.workspace = true
-tracing.workspace = true
 dotenvy.workspace = true
 scraper.workspace = true
 csv.workspace = true

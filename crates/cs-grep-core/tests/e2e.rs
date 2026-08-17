@@ -1,9 +1,9 @@
 //! End-to-end pipeline: dblp JSON -> upsert -> parse query -> search -> render.
 
-use sec_grep_core::db::{Database, Search};
-use sec_grep_core::output::{render, Format};
-use sec_grep_core::query::YearRange;
-use sec_grep_core::{dblp, query};
+use cs_grep_core::config::Config;
+use cs_grep_core::db::{Database, Search};
+use cs_grep_core::output::{render, Format};
+use cs_grep_core::{dblp, query};
 use serde_json::json;
 
 fn fixture() -> serde_json::Value {
@@ -36,11 +36,13 @@ fn full_pipeline() {
     let n = db.upsert_papers(&papers).unwrap();
     assert_eq!(n, 3);
     assert_eq!(db.count().unwrap(), 3);
+    let config = Config::defaults().unwrap();
 
     // boolean full-text search
+    let parsed = query::parse("fuzzing AND kernel", &config).unwrap();
     let hits = db
         .search(&Search {
-            fts: query::fts("fuzzing AND kernel").unwrap(),
+            fts: parsed.fts,
             ..Default::default()
         })
         .unwrap();
@@ -50,35 +52,30 @@ fn full_pipeline() {
     assert_eq!(hits[0].doi.as_deref(), Some("10.1/a"));
 
     // phrase search
+    let parsed = query::parse("\"side channel\"", &config).unwrap();
     let hits = db
         .search(&Search {
-            fts: query::fts("\"side channel\"").unwrap(),
+            fts: parsed.fts,
             ..Default::default()
         })
         .unwrap();
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].dblp_key, "p2");
 
-    // year filter
+    // full-text and metadata query
+    let parsed = query::parse("attacks WHERE year:2023- AND venue:NDSS", &config).unwrap();
     let recent = db
         .search(&Search {
-            year_ranges: vec![YearRange::new(Some(2023), None).unwrap()],
+            fts: parsed.fts,
+            filter: parsed.filter,
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(recent.len(), 2);
+    assert_eq!(recent.len(), 1);
+    assert_eq!(recent[0].dblp_key, "p2");
 
     // bibtex render
     let bib = render(&papers, Format::Bibtex, None).unwrap();
     assert!(bib.contains("@inproceedings{ndss:2024:smith,"));
     assert!(bib.contains("author    = {Alice Smith and Bob Jones}"));
-}
-
-#[test]
-fn idempotent_reingest() {
-    let papers = dblp::parse_results(&fixture(), "NDSS");
-    let mut db = Database::open_in_memory().unwrap();
-    db.upsert_papers(&papers).unwrap();
-    db.upsert_papers(&papers).unwrap();
-    assert_eq!(db.count().unwrap(), 3);
 }

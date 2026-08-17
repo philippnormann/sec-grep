@@ -6,8 +6,8 @@ services:
     ports:
       - "5002:5002"
     volumes:
-      - sec-grep-data:/data
+      - cs-grep-data:/data
     restart: unless-stopped
 
 volumes:
-  sec-grep-data:
+  cs-grep-data:

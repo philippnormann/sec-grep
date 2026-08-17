@@ -30,13 +30,4 @@ impl Paper {
         let venue = self.venue.replace([' ', '&'], "").to_lowercase();
         format!("{venue}:{}:{first_author}", self.year)
     }
-
-    /// Authors formatted for BibTeX (" and " separated).
-    pub fn authors_bibtex(&self) -> String {
-        self.authors
-            .split(", ")
-            .filter(|s| !s.is_empty())
-            .collect::<Vec<_>>()
-            .join(" and ")
-    }
 }

@@ -1,14 +1,14 @@
 [workspace]
 resolver = "2"
-members = ["crates/sec-grep-core", "crates/sec-grep", "crates/sec-grep-web"]
+members = ["crates/cs-grep-core", "crates/cs-grep", "crates/cs-grep-web"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.95"
-description = "Fast local search for security conference papers"
+description = "Fast local search across computer science research literature"
 license = "MIT"
-repository = "https://github.com/philippnormann/sec-grep"
+repository = "https://github.com/philippnormann/cs-grep"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }

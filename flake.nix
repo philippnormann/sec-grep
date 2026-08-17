@@ -1,5 +1,5 @@
 {
-  description = "sec-grep";
+  description = "cs-grep";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -41,11 +41,11 @@
         let
           src = ./.;
           manifest = (pkgs.lib.importTOML "${src}/Cargo.toml").workspace.package;
-          secGrep =
+          csGrep =
             with pkgs;
             rustPlatform.buildRustPackage {
               inherit src;
-              name = "sec-grep";
+              name = "cs-grep";
               version = manifest.version;
               cargoLock = {
                 lockFile = ./Cargo.lock;
@@ -53,17 +53,17 @@
               doCheck = false;
             };
 
-          secGrepWeb =
+          csGrepWeb =
             with pkgs;
             rustPlatform.buildRustPackage {
               inherit src;
-              name = "sec-grep-web";
+              name = "cs-grep-web";
               version = manifest.version;
               cargoLock = {
                 lockFile = ./Cargo.lock;
               };
               doCheck = false;
-              cargoBuildFlags = [ "-p" "sec-grep-web" ];
+              cargoBuildFlags = [ "-p" "cs-grep-web" ];
             };
 
         in
@@ -77,13 +77,13 @@
           };
 
           packages = {
-            inherit secGrep secGrepWeb;
-            default = secGrep;
+            inherit csGrep csGrepWeb;
+            default = csGrep;
           };
 
           devShells.default = pkgs.mkShell {
             buildInputs =
-              secGrep.buildInputs
+              csGrep.buildInputs
               ++ (with pkgs; [
                 cargo
               ]);

@@ -149,7 +149,17 @@ pub(crate) enum SortMode {
     Rank,
 }
 
-
+impl SortMode {
+    /// Convert to the core `Sort` type using the config for rank ordering.
+    pub(crate) fn to_sort(self, config: &Config) -> Sort {
+        match self {
+            SortMode::Relevance => Sort::Relevance,
+            SortMode::Year => Sort::Year,
+            SortMode::Venue => Sort::Venue,
+            SortMode::Rank => Sort::Rank(config.rank_sort_order()),
+        }
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -259,13 +269,7 @@ fn cmd_search(cli: &Cli, paths: &Paths, config: &Config) -> Result<()> {
     let db = open_db(cli, paths)?;
 
     let raw = cli.query.join(" ");
-    let sort_mode = cli.sort.unwrap_or(SortMode::Relevance);
-    let sort = match sort_mode {
-        SortMode::Relevance => Sort::Relevance,
-        SortMode::Year => Sort::Year,
-        SortMode::Venue => Sort::Venue,
-        SortMode::Rank => Sort::Rank(config.rank_sort_order()),
-    };
+    let sort = cli.sort.unwrap_or(SortMode::Relevance).to_sort(config);
     let search = build_search(
         &raw,
         config,
@@ -611,5 +615,30 @@ mod tests {
                 query::YearRange::single(2029)
             ]
         );
+    }
+
+    #[test]
+    fn sort_mode_relevance_converts_to_relevance() {
+        let config = Config::defaults().unwrap();
+        assert_eq!(SortMode::Relevance.to_sort(&config), Sort::Relevance);
+    }
+
+    #[test]
+    fn sort_mode_year_converts_to_year() {
+        let config = Config::defaults().unwrap();
+        assert_eq!(SortMode::Year.to_sort(&config), Sort::Year);
+    }
+
+    #[test]
+    fn sort_mode_venue_converts_to_venue() {
+        let config = Config::defaults().unwrap();
+        assert_eq!(SortMode::Venue.to_sort(&config), Sort::Venue);
+    }
+
+    #[test]
+    fn sort_mode_rank_uses_config_rank_order() {
+        let config = Config::defaults().unwrap();
+        let expected = Sort::Rank(config.rank_sort_order());
+        assert_eq!(SortMode::Rank.to_sort(&config), expected);
     }
 }

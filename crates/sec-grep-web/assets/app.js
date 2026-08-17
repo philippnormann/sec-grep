@@ -459,7 +459,7 @@ function getEventRowIndex(event) {
 function el(tag, className, text) {
   const e = document.createElement(tag);
   if (className) e.className = className;
-  if (text) e.textContent = text;
+  if (text !== undefined && text !== null) e.textContent = text;
   return e;
 }
 

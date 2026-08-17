@@ -205,20 +205,7 @@ body {
   border-top: 1px solid var(--color-border);
   justify-content: flex-end;
 }
-.modal-btn {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 0.375rem;
-  padding: 0.375rem 0.75rem;
-  color: var(--color-text);
-  cursor: pointer;
-  font-size: 0.875rem;
-}
-.modal-btn:hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-accent-secondary);
-  color: var(--color-accent-secondary);
-}
+.modal-btn,
 .download-btn {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -227,12 +214,15 @@ body {
   color: var(--color-text);
   cursor: pointer;
   font-size: 0.875rem;
-  margin-left: 0.5rem;
 }
+.modal-btn:hover,
 .download-btn:hover {
   background: var(--color-surface-hover);
   border-color: var(--color-accent-secondary);
   color: var(--color-accent-secondary);
+}
+.download-btn {
+  margin-left: 0.5rem;
 }
 .status {
   font-size: 0.875rem;

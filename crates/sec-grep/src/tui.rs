@@ -16,7 +16,7 @@ use ratatui::widgets::{Block, BorderType, Borders, List, ListItem, ListState, Pa
 
 use crate::{build_search, SearchOptions, SortMode};
 use sec_grep_core::config::Config;
-use sec_grep_core::db::{Database, Search, Sort};
+use sec_grep_core::db::{Database, Search};
 use sec_grep_core::{Error as CoreError, Paper, Result as CoreResult};
 use url::Url;
 
@@ -143,12 +143,7 @@ impl App {
     }
 
     fn base_search(&self) -> CoreResult<Search> {
-        let sort = match self.sort {
-            SortMode::Relevance => Sort::Relevance,
-            SortMode::Year => Sort::Year,
-            SortMode::Venue => Sort::Venue,
-            SortMode::Rank => Sort::Rank(self.config.rank_sort_order()),
-        };
+        let sort = self.sort.to_sort(&self.config);
         build_search(
             &self.input,
             &self.config,

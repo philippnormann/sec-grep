@@ -11,8 +11,8 @@ mod model;
 pub use error::{Error, Result};
 pub use model::Paper;
 
-use crate::db::{Search, Sort};
 use crate::config::Config;
+use crate::db::{Search, Sort};
 
 /// Build a search query from a raw query string and options.
 ///

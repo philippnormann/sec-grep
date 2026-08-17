@@ -61,18 +61,19 @@ cs-grep update --since 2018
 cs-grep --tui
 ```
 
-Run the TUI in a container:
+Run the TUI in a container (all commands use `--db /data/papers.db` so they share
+the `cs-grep_cs-grep-data` volume that the web service reads):
 
 ```sh
-podman-compose run --rm web /usr/local/bin/cs-grep init
-podman-compose run --rm web /usr/local/bin/cs-grep update --since 2018
-podman run --rm -it -v cs-grep_cs-grep-data:/data cs-grep:latest /usr/local/bin/cs-grep --tui
+podman-compose run --rm web /usr/local/bin/cs-grep init --db /data/papers.db
+podman-compose run --rm web /usr/local/bin/cs-grep update --db /data/papers.db --since 2018
+podman run --rm -it -v cs-grep_cs-grep-data:/data cs-grep:latest /usr/local/bin/cs-grep --db /data/papers.db --tui
 ```
 
 Run CLI in a container:
 
 ```sh
-podman run --rm -v cs-grep_cs-grep-data:/data cs-grep:latest /usr/local/bin/cs-grep 'fuzzing WHERE year:2024-'
+podman run --rm -v cs-grep_cs-grep-data:/data cs-grep:latest /usr/local/bin/cs-grep --db /data/papers.db 'fuzzing WHERE year:2024-'
 ```
 
 In the TUI, use `Tab` to cycle sort modes, arrow keys to move, and `Enter` to

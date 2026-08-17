@@ -19,4 +19,4 @@ COPY --from=rust-builder /src/target/release/cs-grep /usr/local/bin/cs-grep
 COPY --from=rust-builder /src/target/release/cs-grep-web /usr/local/bin/cs-grep-web
 VOLUME ["/data"]
 EXPOSE 5002
-CMD ["cs-grep-web", "--port", "5002", "--db", "/data/papers.db"]
+CMD ["cs-grep-web", "--host", "0.0.0.0", "--port", "5002", "--db", "/data/papers.db"]

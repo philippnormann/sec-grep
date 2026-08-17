@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/cs-grep-core", "crates/cs-grep"]
+members = ["crates/cs-grep-core", "crates/cs-grep", "crates/cs-grep-web"]
 
 [workspace.package]
 version = "0.1.0"
@@ -21,6 +21,8 @@ futures = "0.3"
 clap = { version = "4", features = ["derive"] }
 thiserror = "2"
 anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 dotenvy = "0.15"
 scraper = "0.27"
 csv = "1"
@@ -29,3 +31,4 @@ crossterm = "0.29"
 directories = "6"
 tempfile = "3"
 url = "2"
+axum = "0.8"

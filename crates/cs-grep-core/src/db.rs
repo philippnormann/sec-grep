@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use rusqlite::{params_from_iter, types::Value, Connection, OpenFlags, Row};
+use rusqlite::{params_from_iter, types::Value, Connection, OpenFlags, OptionalExtension, Row};
 
 use crate::config::RankSortOrder;
 use crate::query::{FilterExpr, YearRange};
@@ -243,6 +243,19 @@ impl Database {
             .conn
             .query_row(&sql, params_from_iter(parts.args.iter()), |r| r.get(0))?;
         Ok(count as usize)
+    }
+
+    /// Look up a single paper by its DBLP key.
+    pub fn get_by_key(&self, dblp_key: &str) -> Result<Option<Paper>> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT dblp_key, venue, year, title, authors, doi, url, abstract \
+                 FROM papers WHERE dblp_key = ?1",
+                [dblp_key],
+                row_to_paper,
+            )
+            .optional()?)
     }
 }
 

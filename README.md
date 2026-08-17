@@ -38,6 +38,23 @@ nix run "github:philippnormann/cs-grep" -- <arguments> # run once
 nix shell "github:philippnormann/cs-grep"              # add to PATH
 ```
 
+### Docker / Podman
+
+Build the image (includes CLI, TUI, and Web UI):
+
+```sh
+podman build -t cs-grep:latest .
+```
+
+Run the Web UI:
+
+```sh
+podman-compose run --rm web /usr/local/bin/cs-grep init --db /data/papers.db
+podman-compose run --rm web /usr/local/bin/cs-grep update --db /data/papers.db --since 2018
+podman-compose up -d
+# open http://localhost:5002
+```
+
 ## Use
 
 ```sh

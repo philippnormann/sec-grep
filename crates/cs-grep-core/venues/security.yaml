@@ -1,86 +1,553 @@
-# Security and AI-security venues bundled with cs-grep.
-
 venues:
-  - id: NDSS
-    name: Network and Distributed System Security Symposium
-    dblp_stream: conf/ndss
-    aliases: [ndss]
-    rank: A*
-    tags: [security]
 
-  - id: USENIX-SEC
-    name: USENIX Security Symposium
-    dblp_stream: conf/uss
-    aliases: [usenix, usenix-security, uss]
-    rank: A*
-    tags: [security]
+  # =========================
+  # Tier 1 Security Conferences
+  # =========================
 
   - id: SP
     name: IEEE Symposium on Security and Privacy
     dblp_stream: conf/sp
-    aliases: [sp, oakland, ieee-sp, "s&p"]
+    aliases: [sp, oakland, ieee-s&p, ieee sp, security and privacy]
     rank: A*
-    tags: [security]
+    tags: [security, privacy]
 
   - id: CCS
     name: ACM Conference on Computer and Communications Security
     dblp_stream: conf/ccs
-    aliases: [ccs, acm-ccs]
+    aliases: [ccs, acm ccs]
     rank: A*
-    tags: [security]
+    tags: [security, privacy, systems, networks]
 
-  - id: RAID
-    name: Symposium on Research in Attacks, Intrusions and Defenses
-    dblp_stream: conf/raid
-    aliases: [raid]
-    rank: A
-    tags: [security]
+  - id: USENIX Security
+    name: USENIX Security Symposium
+    dblp_stream: conf/uss
+    aliases: [security, usenix security, usenix security symposium]
+    rank: A*
+    tags: [security, systems, privacy]
 
-  - id: ACSAC
-    name: Annual Computer Security Applications Conference
-    dblp_stream: conf/acsac
-    aliases: [acsac]
-    rank: A
-    tags: [security]
+  - id: NDSS
+    name: Network and Distributed System Security Symposium
+    dblp_stream: conf/ndss
+    aliases: [ndss, network and distributed system security symposium]
+    rank: A*
+    tags: [security, networks, systems]
+
+  # =========================
+  # Major Security Conferences
+  # =========================
 
   - id: ESORICS
     name: European Symposium on Research in Computer Security
     dblp_stream: conf/esorics
     aliases: [esorics]
     rank: A
-    tags: [security]
+    tags: [security, privacy]
+
+  - id: RAID
+    name: International Symposium on Research in Attacks, Intrusions and Defenses
+    dblp_stream: conf/raid
+    aliases: [raid, attacks intrusions and defenses]
+    rank: A
+    tags: [security, intrusion-detection, malware]
+
+  - id: ACSAC
+    name: Annual Computer Security Applications Conference
+    dblp_stream: conf/acsac
+    aliases: [acsac]
+    rank: A
+    tags: [security, systems, applications]
 
   - id: AsiaCCS
     name: ACM Asia Conference on Computer and Communications Security
     dblp_stream: conf/asiaccs
-    aliases: [asiaccs, asia-ccs]
+    aliases: [asiaccs, asia ccs, acm asiaccs]
     rank: A
-    tags: [security]
+    tags: [security, privacy, networks]
 
   - id: EuroSP
     name: IEEE European Symposium on Security and Privacy
     dblp_stream: conf/eurosp
-    aliases: [eurosp, euro-s&p, euros&p]
+    aliases: [eurosp, european s&p, ieee european s&p]
     rank: A
-    tags: [security]
+    tags: [security, privacy]
 
-  - id: AISec
-    name: ACM Workshop on Artificial Intelligence and Security
-    dblp_stream: conf/aisec-ws
-    aliases: [aisec, ai-sec]
-    rank: workshop
-    tags: [security, ml]
-
-  - id: SaTML
-    name: IEEE Conference on Secure and Trustworthy Machine Learning
-    dblp_stream: conf/satml
-    aliases: [satml]
+  - id: CSF
+    name: IEEE Computer Security Foundations Symposium
+    dblp_stream: conf/csf
+    aliases: [csf, csfw, computer security foundations]
     rank: A
-    tags: [security, ml]
+    tags: [security, formal-methods, foundations]
 
-  - id: SOUPS
-    name: Symposium on Usable Privacy and Security
-    dblp_stream: conf/soups
-    aliases: [soups]
+  - id: PETS
+    name: Privacy Enhancing Technologies Symposium
+    dblp_stream: conf/pet
+    aliases: [pets, pet symposium, privacy enhancing technologies]
     rank: A
-    tags: [security, hci]
+    tags: [privacy, anonymity, security]
+
+  - id: DSN
+    name: IEEE International Conference on Dependable Systems and Networks
+    dblp_stream: conf/dsn
+    aliases: [dsn, dependable systems and networks]
+    rank: A
+    tags: [security, systems, dependability, resilience]
+
+  # =========================
+  # Security and Communications
+  # =========================
+
+  - id: SecureComm
+    name: International Conference on Security and Privacy in Communication Networks
+    dblp_stream: conf/securecomm
+    aliases: [securecomm]
+    rank: B
+    tags: [security, privacy, networks, communications]
+
+  - id: IEEE CNS
+    name: IEEE Conference on Communications and Network Security
+    dblp_stream: conf/cns
+    aliases: [cns, ieee cns]
+    rank: B
+    tags: [security, networks, communications]
+
+  - id: WiSec
+    name: ACM Conference on Security and Privacy in Wireless and Mobile Networks
+    dblp_stream: conf/wisec
+    aliases: [wisec, acm wisec, wireless security]
+    rank: B
+    tags: [security, wireless, mobile, networks]
+
+  - id: ACNS
+    name: International Conference on Applied Cryptography and Network Security
+    dblp_stream: conf/acns
+    aliases: [acns]
+    rank: B
+    tags: [security, cryptography, networks]
+
+  - id: CANS
+    name: International Conference on Cryptology and Network Security
+    dblp_stream: conf/cans
+    aliases: [cans]
+    rank: B
+    tags: [security, cryptography, networks]
+
+  - id: ICICS
+    name: International Conference on Information and Communications Security
+    dblp_stream: conf/icics
+    aliases: [icics]
+    rank: B
+    tags: [security, communications, networks]
+
+  - id: TrustCom
+    name: IEEE International Conference on Trust, Security and Privacy in Computing and Communications
+    dblp_stream: conf/trustcom
+    aliases: [trustcom, ieee trustcom]
+    rank: B
+    tags: [security, privacy, trust, communications]
+
+  - id: ICC
+    name: IEEE International Conference on Communications
+    dblp_stream: conf/icc
+    aliases: [icc, ieee icc]
+    rank: A
+    tags: [communications, networks, wireless, security]
+
+  - id: GLOBECOM
+    name: IEEE Global Communications Conference
+    dblp_stream: conf/globecom
+    aliases: [globecom, ieee globecom]
+    rank: A
+    tags: [communications, networks, wireless, security]
+
+  - id: WCNC
+    name: IEEE Wireless Communications and Networking Conference
+    dblp_stream: conf/wcnc
+    aliases: [wcnc, ieee wcnc]
+    rank: A
+    tags: [wireless, communications, networks, security]
+
+  - id: PIMRC
+    name: IEEE International Symposium on Personal, Indoor and Mobile Radio Communications
+    dblp_stream: conf/pimrc
+    aliases: [pimrc, ieee pimrc]
+    rank: B
+    tags: [wireless, mobile, radio, communications, security]
+
+  - id: VTC
+    name: IEEE Vehicular Technology Conference
+    dblp_stream: conf/vtc
+    aliases: [vtc, ieee vtc, vehicular technology conference]
+    rank: B
+    tags: [wireless, vehicular, mobile, communications, security]
+
+  - id: COMSNETS
+    name: International Conference on Communication Systems and Networks
+    dblp_stream: conf/comsnets
+    aliases: [comsnets]
+    rank: B
+    tags: [communications, networks, wireless, security]
+
+  - id: CSNet
+    name: Cyber Security in Networking
+    dblp_stream: conf/csnet
+    aliases: [csnet, cyber security in networking]
+    rank: B
+    tags: [cybersecurity, networks, communications]
+
+  # =========================
+  # Cyber-Physical Systems and IoT
+  # =========================
+
+  - id: ICCPS
+    name: ACM/IEEE International Conference on Cyber-Physical Systems
+    dblp_stream: conf/iccps
+    aliases: [iccps, cyber-physical systems]
+    rank: A
+    tags: [cps, security, communications, embedded-systems, iot]
+
+  - id: ICPS
+    name: IEEE International Conference on Industrial Cyber-Physical Systems
+    dblp_stream: conf/icps
+    aliases: [icps, industrial cps]
+    rank: B
+    tags: [industrial-cps, security, communications, industrial-iot]
+
+  - id: HSCC
+    name: ACM International Conference on Hybrid Systems Computation and Control
+    dblp_stream: conf/hscc
+    aliases: [hscc, hybrid systems]
+    rank: A
+    tags: [cps, control-systems, security, embedded-systems]
+
+  - id: SenSys
+    name: ACM Conference on Embedded Networked Sensor Systems
+    dblp_stream: conf/sensys
+    aliases: [sensys, embedded sensor systems]
+    rank: A
+    tags: [iot, sensor-networks, embedded-systems, security]
+
+  - id: IPSN
+    name: ACM/IEEE International Conference on Information Processing in Sensor Networks
+    dblp_stream: conf/ipsn
+    aliases: [ipsn, information processing in sensor networks]
+    rank: A
+    tags: [sensor-networks, iot, communications, security]
+
+  - id: IoTDI
+    name: ACM/IEEE International Conference on Internet of Things Design and Implementation
+    dblp_stream: conf/iotdi
+    aliases: [iotdi, iot design and implementation]
+    rank: B
+    tags: [iot, security, embedded-systems, communications]
+
+  - id: CPSIoTSec
+    name: Workshop on Cyber-Physical Systems and Internet of Things Security and Privacy
+    dblp_stream: conf/cpsiotsec
+    aliases: [cpsiotsec, cps iot security]
+    rank: B
+    tags: [cps, iot, security, privacy]
+
+  - id: CPSS
+    name: ACM Workshop on Cyber-Physical System Security
+    dblp_stream: conf/cpss
+    aliases: [cpss, cps security]
+    rank: B
+    tags: [cps, security, embedded-systems, iot]
+
+  # =========================
+  # Hardware and Embedded Security
+  # =========================
+
+  - id: CHES
+    name: International Conference on Cryptographic Hardware and Embedded Systems
+    dblp_stream: conf/ches
+    aliases: [ches, cryptographic hardware]
+    rank: A
+    tags: [hardware-security, cryptography, embedded-systems]
+
+  - id: HOST
+    name: IEEE International Symposium on Hardware Oriented Security and Trust
+    dblp_stream: conf/host
+    aliases: [host, ieee host, hardware security]
+    rank: A
+    tags: [hardware-security, security, trust, embedded-systems]
+
+  - id: DATE
+    name: Design Automation and Test in Europe
+    dblp_stream: conf/date
+    aliases: [date, design automation and test]
+    rank: A
+    tags: [embedded-systems, hardware, security, design-automation]
+
+  - id: DAC
+    name: Design Automation Conference
+    dblp_stream: conf/dac
+    aliases: [dac]
+    rank: A*
+    tags: [hardware, embedded-systems, security, design-automation]
+
+  # =========================
+  # Networking and Systems
+  # =========================
+
+  - id: SIGCOMM
+    name: ACM SIGCOMM Conference
+    dblp_stream: conf/sigcomm
+    aliases: [sigcomm, acm sigcomm]
+    rank: A*
+    tags: [networks, communications, systems]
+
+  - id: NSDI
+    name: USENIX Symposium on Networked Systems Design and Implementation
+    dblp_stream: conf/nsdi
+    aliases: [nsdi]
+    rank: A*
+    tags: [systems, networks, distributed-systems]
+
+  - id: INFOCOM
+    name: IEEE International Conference on Computer Communications
+    dblp_stream: conf/infocom
+    aliases: [infocom, ieee infocom]
+    rank: A
+    tags: [networks, communications, security]
+
+  - id: CoNEXT
+    name: ACM International Conference on Emerging Networking Experiments and Technologies
+    dblp_stream: conf/conext
+    aliases: [conext, acm conext]
+    rank: A
+    tags: [networks, communications, security, systems]
+
+  - id: ICDCS
+    name: IEEE International Conference on Distributed Computing Systems
+    dblp_stream: conf/icdcs
+    aliases: [icdcs]
+    rank: B
+    tags: [distributed-systems, systems, networks, security]
+
+  - id: ICNP
+    name: IEEE International Conference on Network Protocols
+    dblp_stream: conf/icnp
+    aliases: [icnp, ieee icnp]
+    rank: B
+    tags: [networks, protocols, communications, security]
+
+  # =========================
+  # Wireless and Mobile Systems
+  # =========================
+
+  - id: MobiCom
+    name: ACM International Conference on Mobile Computing and Networking
+    dblp_stream: conf/mobicom
+    aliases: [mobicom, acm mobicom]
+    rank: A*
+    tags: [mobile, wireless, networks, security]
+
+  - id: MobiSys
+    name: ACM International Conference on Mobile Systems, Applications, and Services
+    dblp_stream: conf/mobisys
+    aliases: [mobisys, acm mobisys]
+    rank: A
+    tags: [mobile, systems, applications, security]
+
+  - id: MobiHoc
+    name: ACM International Symposium on Mobile Ad Hoc Networking and Computing
+    dblp_stream: conf/mobihoc
+    aliases: [mobihoc, acm mobihoc]
+    rank: A
+    tags: [mobile, wireless, networks, security]
+
+  - id: SECON
+    name: IEEE International Conference on Sensing, Communication and Networking
+    dblp_stream: conf/secon
+    aliases: [secon, ieee secon]
+    rank: A
+    tags: [wireless, sensor-networks, communications, security]
+
+  # =========================
+  # Industrial and Smart Grid
+  # =========================
+
+  - id: ETFA
+    name: IEEE International Conference on Emerging Technologies and Factory Automation
+    dblp_stream: conf/etfa
+    aliases: [etfa, factory automation]
+    rank: B
+    tags: [industrial-control, industrial-iot, cps, security]
+
+  - id: INDIN
+    name: IEEE International Conference on Industrial Informatics
+    dblp_stream: conf/indin
+    aliases: [indin, industrial informatics]
+    rank: B
+    tags: [industrial-iot, cps, security, communications]
+
+  - id: PESGM
+    name: IEEE Power and Energy Society General Meeting
+    dblp_stream: conf/pesgm
+    aliases: [pesgm, ieee pes general meeting, ieee pes]
+    rank: B
+    tags: [smart-grid, power-systems, communications, security]
+
+  # =========================
+  # Wireless / Communications / Security Journals (added)
+  # =========================
+
+  - id: TIFS
+    name: IEEE Transactions on Information Forensics and Security
+    dblp_stream: journals/tifs
+    aliases: [tifs, ieee tifs, information forensics and security]
+    rank: A*
+    tags: [security, forensics, privacy, wireless, communications]
+
+  - id: TDSC
+    name: IEEE Transactions on Dependable and Secure Computing
+    dblp_stream: journals/tdsc
+    aliases: [tdsc, ieee tdsc, dependable and secure computing]
+    rank: A*
+    tags: [security, dependability, systems, privacy]
+
+  - id: TWC
+    name: IEEE Transactions on Wireless Communications
+    dblp_stream: journals/twc
+    aliases: [twc, ieee twc, transactions on wireless communications]
+    rank: A*
+    tags: [wireless, communications, security, phy-security]
+
+  - id: TON
+    name: IEEE/ACM Transactions on Networking
+    dblp_stream: journals/ton
+    aliases: [ton, transactions on networking]
+    rank: A*
+    tags: [networks, communications, security, systems]
+
+  - id: TCOM
+    name: IEEE Transactions on Communications
+    dblp_stream: journals/tcom
+    aliases: [tcom, ieee tcom, transactions on communications]
+    rank: A
+    tags: [communications, wireless, security, phy-security]
+
+  - id: JSAC
+    name: IEEE Journal on Selected Areas in Communications
+    dblp_stream: journals/jsac
+    aliases: [jsac, ieee jsac, selected areas in communications]
+    rank: A*
+    tags: [communications, wireless, networks, security]
+
+  - id: IOTJ
+    name: IEEE Internet of Things Journal
+    dblp_stream: journals/iotj
+    aliases: [iotj, ieee iot journal, internet of things journal]
+    rank: A
+    tags: [iot, communications, security, cps]
+
+  - id: COMST
+    name: IEEE Communications Surveys and Tutorials
+    dblp_stream: journals/comsur
+    aliases: [comst, comsur, communications surveys and tutorials]
+    rank: A*
+    tags: [communications, networks, wireless, security, survey]
+
+  - id: TMC
+    name: IEEE Transactions on Mobile Computing
+    dblp_stream: journals/tmc
+    aliases: [tmc, ieee tmc, transactions on mobile computing]
+    rank: A*
+    tags: [mobile, wireless, networks, security]
+
+  - id: TVT
+    name: IEEE Transactions on Vehicular Technology
+    dblp_stream: journals/tvt
+    aliases: [tvt, ieee tvt, transactions on vehicular technology]
+    rank: A
+    tags: [wireless, vehicular, communications, security]
+
+  - id: ComCom
+    name: Computer Communications
+    dblp_stream: journals/comcom
+    aliases: [comcom, computer communications]
+    rank: B
+    tags: [communications, networks, security]
+
+  - id: ComNet
+    name: Computer Networks
+    dblp_stream: journals/cn
+    aliases: [comnet, computer networks]
+    rank: A
+    tags: [networks, communications, security]
+
+  - id: JNCA
+    name: Journal of Network and Computer Applications
+    dblp_stream: journals/jnca
+    aliases: [jnca]
+    rank: A
+    tags: [networks, communications, security, applications]
+
+  - id: AdHoc
+    name: Ad Hoc Networks
+    dblp_stream: journals/adhoc
+    aliases: [adhoc, ad hoc networks]
+    rank: B
+    tags: [wireless, ad-hoc, sensor-networks, security]
+
+  # =========================
+  # Wireless / PHY Security Conferences (added)
+  # =========================
+
+  - id: WoWMoM
+    name: IEEE International Symposium on a World of Wireless, Mobile and Multimedia Networks
+    dblp_stream: conf/wowmom
+    aliases: [wowmom, ieee wowmom]
+    rank: B
+    tags: [wireless, mobile, networks, security]
+
+  - id: DySPAN
+    name: IEEE International Symposium on Dynamic Spectrum Access Networks
+    dblp_stream: conf/dyspan
+    aliases: [dyspan, ieee dyspan]
+    rank: B
+    tags: [wireless, spectrum, communications, security]
+
+  # =========================
+  # Crypto Engineering / PQC (added)
+  # =========================
+
+  - id: TCHES
+    name: IACR Transactions on Cryptographic Hardware and Embedded Systems
+    dblp_stream: journals/tches
+    aliases: [tches]
+    rank: A
+    tags: [security, cryptography, hardware-security, embedded-systems]
+
+  - id: PQCRYPTO
+    name: International Conference on Post-Quantum Cryptography
+    dblp_stream: conf/pqcrypto
+    aliases: [pqcrypto, pqc]
+    rank: B
+    tags: [security, cryptography, post-quantum]
+
+  # =========================
+  # Smart Grid / Power / OT Journals (added)
+  # =========================
+
+  - id: TSG
+    name: IEEE Transactions on Smart Grid
+    dblp_stream: journals/tsg
+    aliases: [tsg, transactions on smart grid]
+    rank: A
+    tags: [smart-grid, power-systems, communications, security]
+
+  - id: TII
+    name: IEEE Transactions on Industrial Informatics
+    dblp_stream: journals/tii
+    aliases: [tii, transactions on industrial informatics]
+    rank: A
+    tags: [industrial-iot, cps, systems, security]
+
+  - id: TPWRD
+    name: IEEE Transactions on Power Delivery
+    dblp_stream: journals/tpd
+    aliases: [tpwrd, transactions on power delivery]
+    rank: A
+    tags: [smart-grid, power-systems]
